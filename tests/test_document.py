@@ -3,7 +3,16 @@ from pathlib import Path
 
 import pytest
 
-from libreta.document import code_at, expressions, parse, serialize, substitute
+from libreta.document import (
+    code_at,
+    expressions,
+    front_value,
+    parse,
+    serialize,
+    split_front_matter,
+    stamp,
+    substitute,
+)
 
 EJEMPLOS = sorted((Path(__file__).parent.parent / "ejemplos").glob("*.md"))
 
@@ -180,3 +189,33 @@ def test_substitute():
     assert substitute(markdown, values.get) == (
         "Son 1 y **2**, no `py c`.\r\n```bash\n`py a`\n```\nY 1\n"
     )
+
+
+def test_front_matter():
+    text = "---\ntitle: 'Un ''buen'' título'\nauthor: Ana\n---\n# Hola\n"
+    front, body = split_front_matter(text)
+    assert (front, body) == ("---\ntitle: 'Un ''buen'' título'\nauthor: Ana\n---\n", "# Hola\n")
+    assert front_value(front, "title") == "Un 'buen' título"
+    assert front_value(front, "date") is None
+    assert front_value('---\ntitle: "a: \\"b\\""\n---\n', "title") == 'a: "b"'
+    assert split_front_matter("---\n---\nx") == ("---\n---\n", "x")
+    assert split_front_matter("Texto\n---\n") == ("", "Texto\n---\n")
+
+
+def test_stamp():
+    assert stamp("# Hola\n", "", "2026-10-21") == "# Hola\n"  # no title, no front matter
+    assert stamp("# Hola\n", "Informe", "2026-10-21") == (
+        "---\ntitle: Informe\ndate: 2026-10-21\n---\n# Hola\n"
+    )
+    assert stamp("", "Informe", "2026-10-21") == "---\ntitle: Informe\ndate: 2026-10-21\n---\n"
+    text = "---\nauthor: Ana\ntitle: Viejo\ndate: 2020-01-01\n---\n\nTexto"
+    assert stamp(text, "Nuevo: dos", "2026-10-21") == (
+        '---\nauthor: Ana\ntitle: "Nuevo: dos"\ndate: 2026-10-21\n---\n\nTexto'
+    )
+    assert stamp(text, "", "2026-10-21") == "---\nauthor: Ana\ndate: 2026-10-21\n---\n\nTexto"
+    assert stamp("---\nauthor: Ana\n---\n", "2024", "d") == (
+        '---\ntitle: "2024"\nauthor: Ana\ndate: d\n---\n'
+    )
+    for title in ["¿Qué tal?", "true", "# no", " x", "a\nb", "Ünïcode ok"]:
+        front, _ = split_front_matter(stamp("", title, "d"))
+        assert front_value(front, "title") == title

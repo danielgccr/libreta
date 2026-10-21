@@ -6,12 +6,14 @@ async function request(path, options = {}) {
   return response;
 }
 
-export function save(text) {
-  return request("/doc", {
+// Saving sets the title in the front matter and stamps the date: {text, front, date} back.
+export async function save(text, title) {
+  const response = await request("/doc", {
     method: "PUT",
-    headers: { "Content-Type": "text/plain; charset=utf-8" },
-    body: text,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, title }),
   });
+  return response.json();
 }
 
 // `line`: where a Python block opens, or with `inline`, where a Markdown block starts.

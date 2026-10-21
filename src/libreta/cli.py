@@ -11,7 +11,7 @@ import uvicorn
 
 from libreta.app import create_app
 from libreta.cache import GENESIS, Cache, chain
-from libreta.document import expressions, parse
+from libreta.document import expressions, front_value, parse, split_front_matter
 from libreta.knit import complete, knit
 from libreta.worker import Worker
 
@@ -117,7 +117,8 @@ def export(path: Path, to: str, css: list[Path]) -> int:
         return 1 if problems else 0
     output = path.with_suffix(f".{to}")
     command = ["pandoc", knitted.name, "--from", "commonmark_x", "--output", output.name]
-    command += ["--metadata", f"pagetitle={path.stem}"]
+    if not front_value(split_front_matter(markdown)[0], "title"):
+        command += ["--metadata", f"pagetitle={path.stem}"]  # else Pandoc takes the title
     engine = None
     if to == "pdf":  # WeasyPrint follows export.css; typst lays the page out on its own
         engine = "weasyprint" if shutil.which("weasyprint") else "typst"

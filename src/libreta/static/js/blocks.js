@@ -71,14 +71,15 @@ function blockData(main) {
   }));
 }
 
+// The whole file: the front matter (not a block, see editor.js) and then the blocks.
 export function serialize(main) {
-  return serializeBlocks(blockData(main), main.dataset.finalNewline === "1");
+  return layout(blockData(main), main.dataset.finalNewline === "1", main.dataset.front).text;
 }
 
 // The document and the 1-based line where each block starts in it (how /run names a block):
 // a Map from block to line.
 export function locate(main) {
-  const { text, starts } = layout(blockData(main), main.dataset.finalNewline === "1");
+  const { text, starts } = layout(blockData(main), main.dataset.finalNewline === "1", main.dataset.front);
   const lines = new Map();
   main.querySelectorAll(".block").forEach((block, i) => {
     lines.set(block, text.slice(0, starts[i]).split("\n").length);
@@ -91,13 +92,13 @@ export function serializeBlocks(blocks, finalNewline) {
   return layout(blocks, finalNewline).text;
 }
 
-function layout(blocks, finalNewline) {
+function layout(blocks, finalNewline, front = "") {
   const parts = blocks.map((b) => {
     if (b.kind === "markdown") return b.virtual && !b.value ? "" : b.value + "\n";
     const open = b.open.endsWith("\n") ? b.open : b.open + "\n";
     return { open, body: b.value ? b.value + "\n" : "", close: b.close };
   });
-  let text = "";
+  let text = front;
   const starts = [];
   parts.forEach((part, i) => {
     starts.push(text.length);

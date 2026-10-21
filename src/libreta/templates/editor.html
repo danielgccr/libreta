@@ -9,6 +9,10 @@
   <script type="module" src="/static/js/editor.js"></script>
 </head>
 <body>
+  <header class="front">
+    <input id="title" placeholder="Sin título" aria-label="Título" autocomplete="off">
+    <p id="date"></p>
+  </header>
   <main id="doc"></main>
   <script type="application/json" id="doc-data">{{ doc|tojson }}</script>
 </body>

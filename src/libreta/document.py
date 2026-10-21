@@ -11,6 +11,7 @@ continuation, so ``> ```python`` is always prose); thematic breaks such as ``* *
 are read as list items; HTML blocks and setext headings are not recognised.
 """
 
+import json
 import re
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -24,6 +25,9 @@ LIST_ITEM = re.compile(r"( {0,3})([-+*]|\d{1,9}[.)])( +|$)")
 # A backslash escape (so \` opens nothing) or a code span, as in md-highlight.js.
 CODE_SPAN = re.compile(r"\\[!-/:-@\[-`{-~]|(`+)([^`](?:.*?[^`])?)\1(?!`)")
 INLINE_PY = re.compile(r"py\s")
+FRONT_MATTER = re.compile(r"---[ \t]*\n(?:.*?\n)??(?:---|\.\.\.)[ \t]*(?:\n|\Z)", re.S)
+PLAIN_YAML = re.compile(r"\w[\w .,;()¿?¡!'’-]*(?<! )")  # safe unquoted, as a string
+YAML_LITERAL = re.compile(r"(?i)true|false|null|yes|no|on|off|~|[\d.eE+-]+")
 TYPING_PY = re.compile(r"`py\s+([^`]*)\Z")  # an inline expression open up to the cursor
 
 
@@ -185,3 +189,55 @@ def code_at(text: str, line: int, column: int) -> tuple[str, int, int] | None:
         return None
     prefix = "".join(codes)
     return prefix + typing[1], prefix.count("\n") + 1, len(typing[1])
+
+
+def split_front_matter(text: str) -> tuple[str, str]:
+    """The YAML front matter, ``---`` lines included ("" if there is none), and the rest."""
+    m = FRONT_MATTER.match(text)
+    return (m[0], text[m.end() :]) if m else ("", text)
+
+
+def front_value(front: str, key: str) -> str | None:
+    """A top-level scalar of the front matter. Only one-line values: the editor reads the
+    title and the date, it does not parse YAML."""
+    m = re.search(rf"^{key}:[ \t]*(.*?)[ \t]*$", front, re.M)
+    if m is None:
+        return None
+    value = m[1]
+    if value.startswith('"'):
+        try:
+            return json.loads(value)  # close enough to YAML's double quotes
+        except ValueError:
+            return value.strip('"')
+    if value.startswith("'"):
+        return value[1:-1].replace("''", "'")
+    return value
+
+
+def stamp(text: str, title: str, date: str) -> str:
+    """The document as saving writes it: `title` in the front matter (removed if empty) and
+    `date`, the day of the save. Only a title gives a document front matter it lacked."""
+    front, body = split_front_matter(text)
+    if not front:
+        if not title:
+            return text
+        front = "---\n---\n"  # and no blank line after it: the editor's blocks are the body
+    front = _set(front, "title", _yaml(title) if title else "", first=True)
+    return _set(front, "date", date, first=False) + body  # ISO, unquoted: a YAML date
+
+
+def _set(front: str, key: str, value: str, first: bool) -> str:
+    """Replace the `key:` line with `value` (YAML already; "" removes it), or add it after the
+    opening ``---`` (`first`) or before the closing one.
+    ponytail: a multi-line value (``title: >``) would leave its tail behind."""
+    line = f"{key}: {value}\n" if value else ""
+    pattern = re.compile(rf"^{key}:.*\n", re.M)
+    if pattern.search(front):
+        return pattern.sub(lambda _: line, front, count=1)
+    at = front.index("\n") + 1 if first else front.rstrip("\n").rfind("\n") + 1
+    return front[:at] + line + front[at:]
+
+
+def _yaml(value: str) -> str:
+    plain = PLAIN_YAML.fullmatch(value) and not YAML_LITERAL.fullmatch(value)
+    return value if plain else json.dumps(value, ensure_ascii=False)

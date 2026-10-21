@@ -68,6 +68,18 @@ h4 {
   margin-block: 1lh 0.5lh;
 }
 
+/* Title and date of the front matter (the editor's header). */
+header.front {
+  margin-block-end: 2lh;
+}
+header.front > .title {
+  margin: 0;
+}
+header.front > .date {
+  margin: 0.25lh 0 0;
+  color: var(--text-muted);
+}
+
 a {
   color: var(--accent);
   text-decoration: underline;

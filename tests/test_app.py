@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import random
+from datetime import date
 from pathlib import Path
 
 from test_document import PIECES
@@ -122,11 +123,19 @@ def test_put_doc(tmp_path):
     path = tmp_path / "nuevo.md"
     doc_app = create_app(path, "secret")
     assert get(method="PUT", path="/doc", body=b"x", app=doc_app)[0] == 403
-    status, _, _ = get(method="PUT", path="/doc", body=b"# Hola\n", cookie="secret", app=doc_app)
-    assert status == 204 and path.read_text() == "# Hola\n"
+    body = json.dumps({"text": "# Hola\n", "title": ""}).encode()
+    status, _, response = get(method="PUT", path="/doc", body=body, cookie="secret", app=doc_app)
+    assert status == 200 and path.read_text() == "# Hola\n"  # no title: no front matter
+    assert json.loads(response) == {"text": "# Hola\n", "front": "", "date": None}
     assert sorted(p.name for p in tmp_path.iterdir()) == ["nuevo.md"]  # no temp file left
-    status, _, body = get(cookie="secret", app=doc_app)
-    assert status == 200 and b'"value": "# Hola"' in body
+    body = json.dumps({"text": "# Hola\n", "title": " Informe "}).encode()
+    _, _, response = get(method="PUT", path="/doc", body=body, cookie="secret", app=doc_app)
+    today = date.today().isoformat()
+    front = f"---\ntitle: Informe\ndate: {today}\n---\n"
+    assert path.read_text() == front + "# Hola\n"
+    assert json.loads(response) == {"text": front + "# Hola\n", "front": front, "date": today}
+    status, _, page = get(cookie="secret", app=doc_app)
+    assert b'"title": "Informe"' in page and b'"value": "# Hola"' in page  # YAML: no block
 
 
 def post_json(app, path, data):

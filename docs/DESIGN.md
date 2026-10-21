@@ -53,6 +53,11 @@ El fichero es Markdown estándar (CommonMark). Reglas:
 - El código inline `` `py expr` `` dentro del Markdown es una expresión que se evalúa (§4.7).
   En GitHub o en cualquier visor se ve la expresión, que sigue siendo legible.
 - Las salidas no se guardan en el `.md`. Viven en la caché (§5).
+- Front matter YAML opcional al principio (`---` … `---`), el de Pandoc, Obsidian y GitHub.
+  libreta solo lee y escribe `title` y `date`; el resto de claves se conserva tal cual.
+  Al guardar, `title` es el del editor (se borra si queda vacío) y `date` el día del
+  guardado (ISO, sin comillas: una fecha YAML). Un documento sin front matter solo lo
+  recibe cuando se le pone título. Valores de una línea: no hay parser de YAML.
 - Garantía de ida y vuelta: `serialize(parse(texto)) == texto`, byte a byte, incluidos
   espacios finales, líneas en blanco y finales de línea. Es un test obligatorio con
   ficheros de ejemplo variados.
@@ -187,6 +192,11 @@ ambas capas se sincroniza.
 Bloques de Markdown: fuente de texto del documento. Bloques de Python: monoespaciada, dentro
 del contenedor gris junto a su `<div>` de salida.
 
+Encima de los bloques, el título del front matter (§3) en un `<input>` con el aspecto del
+título exportado, y debajo la fecha del último guardado, que no se escribe. Es la excepción
+a "lo que se ve es el fichero": el YAML no se muestra; Enter o ↓ bajan del título al
+documento, ↑ desde la primera línea sube al título.
+
 Cada título de Markdown (`#`, `##`...) abre un bloque nuevo, de modo que el bloque puede
 recibir el margen superior correspondiente al título y el ritmo vertical del editor se
 parece al del documento exportado. Para el usuario sigue siendo una hoja continua: sin
@@ -269,7 +279,8 @@ hasta ahora no ha hecho falta intercambiar fragmentos HTML y HTMX no se usa.
 Endpoints:
 
 - `GET /` página del editor con el documento.
-- `PUT /doc` guardar (texto plano; escritura atómica, conserva CRLF).
+- `PUT /doc` `{text, title}` guardar (escritura atómica, conserva CRLF). Pone el título y
+  la fecha en el front matter y responde `{text, front, date}`: lo que quedó en disco.
 - `POST /run` `{text, line}`: documento completo y línea donde abre el fence del bloque.
   Responde en streaming con NDJSON, un elemento `{mime, content}` (o `{mime, base64}`)
   por línea, en orden. Antes de la salida de cada bloque que se ejecuta llega `{start: línea}`:
@@ -334,6 +345,7 @@ fences, HTML de tablas incrustado), y Pandoc lo convierte con `export.css`. Sin 
   editor. Texto en fences `{.output}` (`.stderr`, `.error`), HTML como bloque crudo
   `{=html}`, `_repr_markdown_` tal cual, figuras con `{width=NN%}` a la escala del editor.
   El Markdown tejido es entrada de Pandoc (`commonmark_x`), no un documento para GitHub.
+- El título y la fecha del front matter encabezan el HTML (Pandoc los lee del YAML).
 - HTML autocontenido (`--embed-resources`), matemáticas en MathML (sin JavaScript) y una
   plantilla propia (`templates/export.html`) sin el CSS de resaltado de Pandoc: `export.css`
   colorea sus clases con la paleta del editor.

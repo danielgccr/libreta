@@ -21,8 +21,15 @@ import { closeAssist, handleAssistInput, handleAssistKey } from "./complete.js";
 import { handlePythonKey } from "./keys.js";
 
 const main = document.getElementById("doc");
+const titleInput = document.getElementById("title");
+const dateLine = document.getElementById("date");
 const doc = JSON.parse(document.getElementById("doc-data").textContent);
 main.dataset.finalNewline = doc.finalNewline ? "1" : "";
+// The YAML front matter is no block: its title is edited above the document and its date
+// is the last save's, stamped by the server. The rest of it is kept as it is, unseen.
+main.dataset.front = doc.front;
+titleInput.value = doc.title;
+showDate(doc.date);
 main.values = doc.values; // of the Markdown before the first Python block
 for (const b of doc.blocks) {
   const block = createBlock(b.kind, b.value, b);
@@ -31,7 +38,8 @@ for (const b of doc.blocks) {
   if (b.values) block.values = b.values;
 }
 normalize(main);
-focusBlock(main.firstElementChild, "start");
+if (doc.blocks.length) focusBlock(main.firstElementChild, "start");
+else titleInput.focus(); // a new document starts with its title
 
 // Notes sit at the height of their line, so they move whenever lines rewrap.
 const paintAllNotes = () => main.querySelectorAll(".block.md").forEach(paintNotes);
@@ -39,14 +47,30 @@ paintAllNotes();
 document.fonts.ready.then(paintAllNotes);
 window.addEventListener("resize", paintAllNotes);
 
-const title = document.title;
+const pageTitle = document.title;
 let saved = serialize(main); // what is on disk
+let savedTitle = titleInput.value;
 let allSelected = false; // Ctrl+A: the whole document, not one textarea
 
 // Unsaved changes = the document differs from what was last saved; no flag to fall out of
 // sync. ponytail: serializes the whole document per edit, cache per block if it gets slow.
-const isDirty = () => serialize(main) !== saved;
-const showDirty = () => (document.title = (isDirty() ? "• " : "") + title);
+const isDirty = () => serialize(main) !== saved || titleInput.value.trim() !== savedTitle.trim();
+const showDirty = () => (document.title = (isDirty() ? "• " : "") + pageTitle);
+
+function showDate(date) {
+  const day = new Date(`${date}T00:00`);
+  if (!date) dateLine.textContent = "";
+  else if (isNaN(day)) dateLine.textContent = date;
+  else dateLine.textContent = day.toLocaleDateString("es", { dateStyle: "long" });
+}
+
+titleInput.addEventListener("input", showDirty);
+titleInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === "ArrowDown") {
+    event.preventDefault();
+    focusBlock(main.firstElementChild, "start");
+  }
+});
 
 function selectAll(on) {
   allSelected = on;
@@ -54,10 +78,13 @@ function selectAll(on) {
 }
 
 async function save() {
-  const text = serialize(main);
+  const title = titleInput.value;
   try {
-    await api.save(text);
-    saved = text;
+    const result = await api.save(serialize(main), title);
+    main.dataset.front = result.front;
+    saved = result.text;
+    savedTitle = title;
+    showDate(result.date);
     showDirty();
   } catch (error) {
     alert(`No se ha podido guardar: ${error.message}`);
@@ -154,7 +181,7 @@ document.addEventListener("keydown", (event) => {
     save();
     return;
   }
-  if (mod && !event.altKey && key === "a") {
+  if (mod && !event.altKey && key === "a" && event.target !== titleInput) {
     event.preventDefault();
     selectAll(true);
     return;
@@ -210,11 +237,12 @@ document.addEventListener("keydown", (event) => {
   if ((event.key === "ArrowUp" || event.key === "ArrowDown") && !mod && !event.shiftKey && !event.altKey) {
     const up = event.key === "ArrowUp";
     const target = up ? block.previousElementSibling : block.nextElementSibling;
-    if (!target) return;
+    if (!target && !up) return;
     const { line, lines } = caretLine(textarea);
     if (up ? line === 0 : line === lines - 1) {
       event.preventDefault();
-      focusBlock(target, up ? "end" : "start");
+      if (target) focusBlock(target, up ? "end" : "start");
+      else titleInput.focus(); // above the first block, the title
     }
   }
 });

@@ -11,10 +11,44 @@ body {
   margin: 0;
 }
 
+header.front,
 main {
   max-width: var(--measure);
   margin-inline: auto;
-  padding: 3lh 1.5rem 40vh;
+  padding-inline: 1.5rem;
+}
+main {
+  padding-block: 0 40vh;
+}
+
+/* The title of the front matter, as the exported title. Outside the overlay: free metrics. */
+header.front {
+  padding-block: 3lh 1lh;
+}
+#title {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+}
+#title::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+#date {
+  margin: 0.25lh 0 0;
+  color: var(--text-muted);
+}
+#date:empty {
+  display: none;
 }
 
 /* Headings open a block so it can take their top margin (DESIGN §6.1). */

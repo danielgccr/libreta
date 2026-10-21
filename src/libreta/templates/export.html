@@ -15,6 +15,14 @@ $endfor$
 </head>
 <body>
 <main>
+$if(title)$
+<header class="front">
+<h1 class="title">$title$</h1>
+$if(date)$
+<p class="date">$date$</p>
+$endif$
+</header>
+$endif$
 $body$
 </main>
 </body>

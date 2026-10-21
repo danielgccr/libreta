@@ -7,6 +7,7 @@ import os
 import secrets
 import shutil
 import threading
+from datetime import date
 from pathlib import Path
 
 from starlette.applications import Starlette
@@ -26,7 +27,15 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 from libreta.cache import GENESIS, Cache, chain, to_json
-from libreta.document import Block, code_at, expressions, parse
+from libreta.document import (
+    Block,
+    code_at,
+    expressions,
+    front_value,
+    parse,
+    split_front_matter,
+    stamp,
+)
 from libreta.worker import Worker
 
 HERE = Path(__file__).parent
@@ -218,16 +227,26 @@ def create_app(path: Path, token: str) -> Starlette:
         text = path.read_text(encoding="utf-8") if path.exists() else ""
         # The browser only speaks \n; save() restores \r\n files.
         text = text.replace("\r\n", "\n").replace("\r", "\n")
+        # The front matter is no block: the editor shows its title and date above them.
+        front, body = split_front_matter(text)
         doc = {
-            "blocks": editor_blocks(text, session.cache),
+            "blocks": editor_blocks(body, session.cache),
             "finalNewline": text == "" or text.endswith("\n"),
             "values": session.cache.load_values(GENESIS),  # Markdown before the first block
+            "front": front,
+            "title": front_value(front, "title") or "",
+            "date": front_value(front, "date"),
         }
         return templates.TemplateResponse(request, "editor.html", {"name": path.name, "doc": doc})
 
     async def put_doc(request: Request):
-        save(path, (await request.body()).decode("utf-8"))
-        return Response(status_code=204)
+        """{text, title} -> the text as saved, its front matter and date: saving sets the
+        title and stamps the day in the front matter."""
+        data = await request.json()
+        text = stamp(data["text"], data["title"].strip(), date.today().isoformat())
+        save(path, text)
+        front, _ = split_front_matter(text)
+        return JSONResponse({"text": text, "front": front, "date": front_value(front, "date")})
 
     async def run(request: Request):
         """Run the Python block whose fence opens at `line` of `text` (the unsaved document:
