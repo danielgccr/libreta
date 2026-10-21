@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ root }} · libreta</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/editor.css">
+</head>
+<body>
+  <header class="front">
+    <h1 class="title">{{ root }}</h1>
+    <p class="date">{{ files|length }} documento{{ "" if files|length == 1 else "s" }}</p>
+  </header>
+  <main class="index">
+    {% if files %}
+    <ol>
+      {% for f in files %}
+      <li>
+        <a href="{{ f.href }}"><span class="folder">{{ f.folder }}</span>{{ f.name }}</a>
+        <time datetime="{{ f.iso }}">{{ f.when }}</time>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="empty">No hay ficheros Markdown en esta carpeta.</p>
+    {% endif %}
+  </main>
+</body>
+</html>

@@ -281,9 +281,17 @@ Starlette con uvicorn. El cliente usa `fetch` en vanilla para todo (`api.js`): e
 documento llega como JSON incrustado en la página y el JS construye los bloques, así que
 hasta ahora no ha hecho falta intercambiar fragmentos HTML y HTMX no se usa.
 
+El servidor sirve una carpeta (la raíz): un worker por documento abierto, creado al usarlo.
+Solo documentos `.md` dentro de la raíz; las rutas con `..` que salen de ella dan 404.
+
 Endpoints:
 
-- `GET /` página del editor con el documento.
+- `GET /` la lista de los `.md` de la raíz y sus subcarpetas (sin carpetas ocultas,
+  `node_modules` ni `.knit.md`), del más reciente al más antiguo: la ruta a la izquierda,
+  la fecha de la última edición a la derecha ("hoy, 20:41", "21 oct", "3 mar 2025").
+- `GET /edit/<ruta>` el editor del documento. Las demás llamadas cuelgan de esa misma URL
+  (`/edit/<ruta>/run`...), así que `api.js` solo necesita `location.pathname`. Encima del
+  título, la ruta del documento enlaza a la lista.
 - `PUT /doc` `{text, title}` guardar (escritura atómica, conserva CRLF). Pone el título y
   la fecha en el front matter y responde `{text, front, date}`: lo que quedó en disco.
 - `POST /run` `{text, line}`: documento completo y línea donde abre el fence del bloque.
@@ -302,7 +310,9 @@ Endpoints:
 
 ## 8. CLI
 
-- `libreta edit doc.md` abre el servidor y el navegador.
+- `libreta` a secas sirve la carpeta actual y abre la lista de sus documentos;
+  `libreta edit carpeta/` hace lo mismo con otra carpeta.
+- `libreta edit doc.md` sirve la carpeta del documento y abre el navegador en él.
 - `libreta run doc.md` ejecuta de arriba abajo en un proceso nuevo, actualiza la caché e
   informa de errores con línea del `.md`. Código de salida distinto de cero si falla algún
   bloque. Pensado para terminal, cron y CI.

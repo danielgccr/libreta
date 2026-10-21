@@ -40,7 +40,7 @@ el formato de fichero o la caché:
 ## Comandos
 
 - Entorno: `uv sync`
-- Editor: `uv run libreta edit ejemplos/demo.md`
+- Editor: `uv run libreta` (lista de documentos) o `uv run libreta edit ejemplos/demo.md`
 - Ejecución sin navegador: `uv run libreta run ejemplos/demo.md`
 - Exportación: `uv run libreta export ejemplos/demo.md [--to pdf]`
 - Tests: `uv run pytest`

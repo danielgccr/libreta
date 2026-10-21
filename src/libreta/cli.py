@@ -6,6 +6,7 @@ import subprocess
 import sys
 import webbrowser
 from pathlib import Path
+from urllib.parse import quote
 
 import uvicorn
 
@@ -23,8 +24,8 @@ VALUES = {"text/plain", "text/markdown"}
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="libreta")
-    commands = parser.add_subparsers(dest="command", required=True)
-    edit_parser = commands.add_parser("edit", help="open a document in the browser editor")
+    commands = parser.add_subparsers(dest="command")  # none: the index of this folder
+    edit_parser = commands.add_parser("edit", help="open a document (or a folder's index)")
     edit_parser.add_argument("path", type=Path)
     run_parser = commands.add_parser("run", help="run a document top to bottom")
     run_parser.add_argument("path", type=Path)
@@ -42,7 +43,13 @@ def main(argv: list[str] | None = None) -> int:
         return run(args.path)
     if args.command == "export":
         return export(args.path, args.to, args.css, args.keep_md)
-    edit(args.path)
+    if args.command is None or args.path.is_dir():
+        serve(args.path if args.command else Path.cwd())
+    elif args.path.suffix != ".md":
+        print(f"libreta: {args.path} no es un fichero .md", file=sys.stderr)
+        return 2
+    else:
+        serve(args.path.parent, args.path.name)
     return 0
 
 
@@ -151,15 +158,17 @@ def _mathml() -> str:
     return "--math-method=mathml" if "--math-method" in help_text else "--mathml"
 
 
-def edit(path: Path) -> None:
+def serve(root: Path, document: str | None = None) -> None:
+    """Serve the documents under `root` and open the browser on `document`, or on the index."""
     token = secrets.token_urlsafe(32)
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     sock.listen()  # queue the browser's first request until uvicorn starts accepting
-    url = f"http://127.0.0.1:{sock.getsockname()[1]}/?token={token}"
-    print(f"libreta: {path} en {url}", flush=True)
+    page = f"edit/{quote(document)}" if document else ""
+    url = f"http://127.0.0.1:{sock.getsockname()[1]}/{page}?token={token}"
+    print(f"libreta: {root / (document or '')} en {url}", flush=True)
     webbrowser.open(url)
-    server = uvicorn.Server(uvicorn.Config(create_app(path, token), log_level="warning"))
+    server = uvicorn.Server(uvicorn.Config(create_app(root, token), log_level="warning"))
     try:
         server.run([sock])
     except KeyboardInterrupt:  # uvicorn re-raises Ctrl+C after shutting down cleanly

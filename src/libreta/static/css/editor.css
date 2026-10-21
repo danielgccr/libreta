@@ -43,12 +43,69 @@ header.front {
   color: var(--text-muted);
   opacity: 0.5;
 }
-#date {
+#date,
+header.front > .date {
   margin: 0.25lh 0 0;
   color: var(--text-muted);
 }
 #date:empty {
   display: none;
+}
+header.front > .title {
+  margin: 0;
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+}
+/* The document's path above its title: back to the index. */
+.path {
+  display: inline-block;
+  margin-block-end: 0.5lh;
+  font-size: 0.875em;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.path:hover {
+  color: var(--accent);
+}
+
+/* Index of documents (GET /): path on the left, last edit on the right. */
+main.index {
+  padding-block-end: 3lh;
+}
+main.index ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+main.index li {
+  display: flex;
+  align-items: baseline;
+  gap: 2ch;
+  border-block-end: 1px solid var(--border);
+}
+main.index a {
+  flex: 1;
+  min-width: 0;
+  padding-block: 0.5lh;
+  color: var(--text-strong);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+main.index a:hover {
+  color: var(--accent);
+}
+main.index .folder,
+main.index time,
+main.index .empty {
+  color: var(--text-muted);
+}
+main.index time {
+  font-size: 0.875em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* Headings open a block so it can take their top margin (DESIGN §6.1). */

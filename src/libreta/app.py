@@ -10,11 +10,13 @@ import secrets
 import shutil
 import sys
 import threading
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import quote
 
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
+from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
@@ -234,10 +236,69 @@ def _ndjson(item: dict) -> str:
     return json.dumps(item) + "\n"
 
 
-def create_app(path: Path, token: str) -> Starlette:
-    session = Session(path)
+SKIP = {"node_modules", "__pycache__"}  # besides hidden folders (.git, .venv, .libreta)
+MONTHS = "ene feb mar abr may jun jul ago sep oct nov dic".split()
+
+
+def markdown_files(root: Path) -> list[tuple[str, float]]:
+    """(path relative to root, modification time) of every Markdown document under root,
+    the most recently edited first. ponytail: walks the whole tree on each visit; cap it if
+    libreta ever gets opened on a huge folder."""
+    found = []
+    for directory, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in SKIP]
+        for name in files:
+            if name.endswith(".md") and not name.endswith(".knit.md"):
+                file = Path(directory, name)
+                with contextlib.suppress(OSError):  # a broken symlink
+                    found.append((file.relative_to(root).as_posix(), file.stat().st_mtime))
+    return sorted(found, key=lambda f: (-f[1], f[0]))
+
+
+def when(mtime: float, now: datetime | None = None) -> str:
+    """A modification time as the index shows it: "hoy, 20:41", "ayer, 9:05", "21 oct",
+    "3 mar 2025"."""
+    t = datetime.fromtimestamp(mtime)
+    now = now or datetime.now()
+    if t.date() == now.date():
+        return f"hoy, {t.hour}:{t.minute:02}"
+    if t.date() == now.date() - timedelta(days=1):
+        return f"ayer, {t.hour}:{t.minute:02}"
+    day = f"{t.day} {MONTHS[t.month - 1]}"
+    return day if t.year == now.year else f"{day} {t.year}"
+
+
+def create_app(root: Path, token: str) -> Starlette:
+    """The editor for the Markdown documents under `root`: their index at /, each one at
+    /edit/<path>, with its own worker and its calls under that same URL."""
+    root = Path(os.path.abspath(root))
+    sessions: dict[Path, Session] = {}
+
+    def document(request: Request) -> tuple[Path, Session]:
+        """The document of the URL; only .md files under root (no way out with "..")."""
+        path = Path(os.path.normpath(root / request.path_params["doc"]))
+        if path.suffix != ".md" or not path.is_relative_to(root):
+            raise HTTPException(404)
+        if path not in sessions:
+            sessions[path] = Session(path)
+        return path, sessions[path]
+
+    async def index(request: Request):
+        files = [
+            {
+                "href": "/edit/" + quote(rel),
+                "folder": rel.rpartition("/")[0] + "/" if "/" in rel else "",
+                "name": rel.rpartition("/")[2],
+                "when": when(mtime),
+                "iso": datetime.fromtimestamp(mtime).isoformat(timespec="minutes"),
+            }
+            for rel, mtime in await run_in_threadpool(markdown_files, root)
+        ]
+        context = {"root": root.name or str(root), "files": files}
+        return templates.TemplateResponse(request, "index.html", context)
 
     async def editor(request: Request):
+        path, session = document(request)
         text = path.read_text(encoding="utf-8") if path.exists() else ""
         # The browser only speaks \n; save() restores \r\n files.
         text = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -250,13 +311,15 @@ def create_app(path: Path, token: str) -> Starlette:
             "front": front,
             "title": front_value(front, "title") or "",
             "date": front_value(front, "date"),
-            "modules": modules(path.parent.resolve()),  # again on focus: GET /modules
+            "modules": modules(path.parent),  # again on focus: GET .../modules
         }
-        return templates.TemplateResponse(request, "editor.html", {"name": path.name, "doc": doc})
+        context = {"name": path.name, "path": path.relative_to(root).as_posix(), "doc": doc}
+        return templates.TemplateResponse(request, "editor.html", context)
 
     async def put_doc(request: Request):
         """{text, title} -> the text as saved, its front matter and date: saving sets the
         title and stamps the day in the front matter."""
+        path, _ = document(request)
         data = await request.json()
         text = stamp(data["text"], data["title"].strip(), date.today().isoformat())
         save(path, text)
@@ -266,6 +329,7 @@ def create_app(path: Path, token: str) -> Starlette:
     async def run(request: Request):
         """Run the Python block whose fence opens at `line` of `text` (the unsaved document:
         the server reparses it rather than trusting the client's idea of the blocks)."""
+        _, session = document(request)
         data = await request.json()
         text, line, inline = data["text"], data["line"], data.get("inline", False)
         parsed = parse(text)
@@ -280,40 +344,45 @@ def create_app(path: Path, token: str) -> Starlette:
         return StreamingResponse(lines, media_type="application/x-ndjson")
 
     async def assist(request: Request):
-        """POST /complete and /signature: {text, line, column} -> JSON list (DESIGN §6.6)."""
+        """.../complete and .../signature: {text, line, column} -> JSON list (DESIGN §6.6)."""
+        _, session = document(request)
         data = await request.json()
         point = code_at(data["text"], data["line"], data["column"])
         if point is None:
             return JSONResponse([])
-        kind = request.url.path.strip("/")
+        kind = request.url.path.rpartition("/")[2]
         return JSONResponse(await run_in_threadpool(session.assist, kind, *point))
 
     async def get_modules(request: Request):
-        return JSONResponse(await run_in_threadpool(modules, path.parent.resolve()))
+        path, _ = document(request)
+        return JSONResponse(await run_in_threadpool(modules, path.parent))
 
     async def interrupt(request: Request):
-        session.interrupt()
+        document(request)[1].interrupt()
         return Response(status_code=204)
 
     async def restart(request: Request):
-        await run_in_threadpool(session.restart)
+        await run_in_threadpool(document(request)[1].restart)
         return Response(status_code=204)
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
         yield
-        await run_in_threadpool(session.restart)  # else multiprocessing waits for the child
+        for session in sessions.values():  # else multiprocessing waits for the children
+            await run_in_threadpool(session.restart)
 
+    doc = "/edit/{doc:path}"
     return Starlette(
         routes=[
-            Route("/", editor),
-            Route("/doc", put_doc, methods=["PUT"]),
-            Route("/run", run, methods=["POST"]),
-            Route("/complete", assist, methods=["POST"]),
-            Route("/signature", assist, methods=["POST"]),
-            Route("/modules", get_modules),
-            Route("/interrupt", interrupt, methods=["POST"]),
-            Route("/restart", restart, methods=["POST"]),
+            Route("/", index),
+            Route(f"{doc}/doc", put_doc, methods=["PUT"]),
+            Route(f"{doc}/run", run, methods=["POST"]),
+            Route(f"{doc}/complete", assist, methods=["POST"]),
+            Route(f"{doc}/signature", assist, methods=["POST"]),
+            Route(f"{doc}/modules", get_modules),
+            Route(f"{doc}/interrupt", interrupt, methods=["POST"]),
+            Route(f"{doc}/restart", restart, methods=["POST"]),
+            Route(doc, editor),
             Mount("/static", RevalidatedStaticFiles(directory=HERE / "static"), name="static"),
         ],
         middleware=[

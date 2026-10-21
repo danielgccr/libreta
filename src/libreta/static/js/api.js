@@ -1,7 +1,10 @@
-// Calls to the server. Output streams back as NDJSON, one {mime, content|base64} per line.
+// Calls to the server, under the document's own URL (/edit/<path>/run...). Output streams
+// back as NDJSON, one {mime, content|base64} per line.
+
+const BASE = location.pathname;
 
 async function request(path, options = {}) {
-  const response = await fetch(path, { method: "POST", ...options });
+  const response = await fetch(BASE + path, { method: "POST", ...options });
   if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
   return response;
 }

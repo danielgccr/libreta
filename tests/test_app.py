@@ -2,15 +2,16 @@ import asyncio
 import json
 import os
 import random
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from test_document import PIECES
 
-from libreta.app import Session, create_app, editor_blocks, modules, save
+from libreta.app import Session, create_app, editor_blocks, markdown_files, modules, save, when
 from libreta.document import parse
 
-app = create_app(Path("doc.md"), "secret")
+app = create_app(Path("."), "secret")
+DOC = "/edit/doc.md"  # the editor of doc.md, and the prefix of its calls
 
 
 def get(query="", host="127.0.0.1:8000", cookie=None, path="/", method="GET", body=b"", app=app):
@@ -66,7 +67,7 @@ def test_token_in_url_sets_cookie_and_redirects():
 
 
 def test_cookie_serves_editor_and_static():
-    status, _, body = get(cookie="secret")
+    status, _, body = get(cookie="secret", path=DOC)
     assert status == 200 and b'<main id="doc">' in body and b"doc.md" in body
     status, headers, _ = get(cookie="secret", path="/static/js/editor.js")
     assert status == 200 and headers[b"cache-control"] == b"no-cache"
@@ -121,26 +122,31 @@ def test_save_keeps_crlf_mode_and_symlink(tmp_path):
 
 def test_put_doc(tmp_path):
     path = tmp_path / "nuevo.md"
-    doc_app = create_app(path, "secret")
-    assert get(method="PUT", path="/doc", body=b"x", app=doc_app)[0] == 403
+    doc_app = create_app(tmp_path, "secret")
+    assert get(method="PUT", path="/edit/nuevo.md/doc", body=b"x", app=doc_app)[0] == 403
     body = json.dumps({"text": "# Hola\n", "title": ""}).encode()
-    status, _, response = get(method="PUT", path="/doc", body=body, cookie="secret", app=doc_app)
+    status, _, response = get(
+        method="PUT", path="/edit/nuevo.md/doc", body=body, cookie="secret", app=doc_app
+    )
     assert status == 200 and path.read_text() == "# Hola\n"  # no title: no front matter
     assert json.loads(response) == {"text": "# Hola\n", "front": "", "date": None}
     assert sorted(p.name for p in tmp_path.iterdir()) == ["nuevo.md"]  # no temp file left
     body = json.dumps({"text": "# Hola\n", "title": " Informe "}).encode()
-    _, _, response = get(method="PUT", path="/doc", body=body, cookie="secret", app=doc_app)
+    _, _, response = get(
+        method="PUT", path="/edit/nuevo.md/doc", body=body, cookie="secret", app=doc_app
+    )
     today = date.today().isoformat()
     front = f"---\ntitle: Informe\ndate: {today}\n---\n"
     assert path.read_text() == front + "# Hola\n"
     assert json.loads(response) == {"text": front + "# Hola\n", "front": front, "date": today}
-    status, _, page = get(cookie="secret", app=doc_app)
+    status, _, page = get(cookie="secret", path="/edit/nuevo.md", app=doc_app)
     assert b'"title": "Informe"' in page and b'"value": "# Hola"' in page  # YAML: no block
 
 
 def post_json(app, path, data):
+    """POST to one of doc.md's calls: path is "/run", "/restart"..."""
     body = json.dumps(data).encode()
-    return get(method="POST", path=path, body=body, cookie="secret", app=app)
+    return get(method="POST", path=DOC + path, body=body, cookie="secret", app=app)
 
 
 def items(body):
@@ -148,7 +154,7 @@ def items(body):
 
 
 def test_run_restart(tmp_path):
-    doc_app = create_app(tmp_path / "doc.md", "secret")
+    doc_app = create_app(tmp_path, "secret")
     text = "Texto\n\n```python\nx = 41\nprint('hola')\nx + 1\n```\n"
     try:
         status, headers, body = post_json(doc_app, "/run", {"text": text, "line": 3})
@@ -170,7 +176,7 @@ def test_run_restart(tmp_path):
 
 
 def test_run_png_is_base64(tmp_path):
-    doc_app = create_app(tmp_path / "doc.md", "secret")
+    doc_app = create_app(tmp_path, "secret")
     code = "class P:\n    def _repr_png_(self):\n        return b'\\x89PNG'\nP()\n"
     try:
         data = {"text": f"```python\n{code}```\n", "line": 1}
@@ -183,7 +189,7 @@ def test_run_png_is_base64(tmp_path):
 def test_run_follows_the_chain(tmp_path):
     """DESIGN §4.5: earlier blocks changed (or never ran) -> fresh worker, run 1..N;
     only block N changed -> run it on the current state."""
-    doc_app = create_app(tmp_path / "doc.md", "secret")
+    doc_app = create_app(tmp_path, "secret")
 
     def run(text, line):
         return items(post_json(doc_app, "/run", {"text": text, "line": line})[2])
@@ -212,7 +218,7 @@ def test_run_follows_the_chain(tmp_path):
 
         # The page shows the cached output of the document's chain.
         (tmp_path / "doc.md").write_text(text)
-        _, _, body = get(cookie="secret", app=doc_app)
+        _, _, body = get(cookie="secret", path=DOC, app=doc_app)
         assert b'"output": [{"content": "110", "mime": "text/plain"}]' in body
         assert b'"output": []' in body  # block 1 ran, with no output
 
@@ -243,7 +249,7 @@ def test_escape_stops_the_replay(tmp_path):
 
 
 def test_inline_values_follow_the_blocks(tmp_path):
-    doc_app = create_app(tmp_path / "doc.md", "secret")
+    doc_app = create_app(tmp_path, "secret")
 
     def run(text, line, inline=False):
         data = {"text": text, "line": line, "inline": inline}
@@ -267,7 +273,7 @@ def test_inline_values_follow_the_blocks(tmp_path):
             {"values": {"x + 1": {"text": "2"}}, "line": 3},
         ]
         (tmp_path / "doc.md").write_text(edited)
-        _, _, body = get(cookie="secret", app=doc_app)
+        _, _, body = get(cookie="secret", path=DOC, app=doc_app)
         assert b'"values": {"x + 1": {"text": "2"}}' in body
         assert b'"values": {"2 + 2": {"text": "4"}}' in body
     finally:
@@ -275,7 +281,7 @@ def test_inline_values_follow_the_blocks(tmp_path):
 
 
 def test_complete_and_signature(tmp_path):
-    doc_app = create_app(tmp_path / "doc.md", "secret")
+    doc_app = create_app(tmp_path, "secret")
     text = "```python\nimport os\nos.getc\n```\n\nEn `py os.getc"
     try:
         status, _, body = post_json(doc_app, "/complete", {"text": text, "line": 3, "column": 7})
@@ -298,6 +304,34 @@ def test_modules(tmp_path):
     names = set(modules(tmp_path))
     assert {"json", "sys", "starlette", "local_helper"} <= names
     assert "no_such_module_here" not in names
-    doc_app = create_app(tmp_path / "doc.md", "secret")
-    status, _, body = get(path="/modules", cookie="secret", app=doc_app)
+    doc_app = create_app(tmp_path, "secret")
+    status, _, body = get(path=f"{DOC}/modules", cookie="secret", app=doc_app)
     assert status == 200 and "local_helper" in json.loads(body)
+
+
+def test_index(tmp_path):
+    for name in ["b.md", "sub/a.md", ".oculta/x.md", "node_modules/y.md", "a.knit.md", "c.txt"]:
+        (tmp_path / name).parent.mkdir(exist_ok=True)
+        (tmp_path / name).write_text("")
+    os.utime(tmp_path / "b.md", (0, 2_000_000_000))  # the most recent
+    assert [rel for rel, _ in markdown_files(tmp_path)] == ["b.md", "sub/a.md"]
+    doc_app = create_app(tmp_path, "secret")
+    status, _, body = get(cookie="secret", app=doc_app)
+    assert status == 200 and body.index(b'href="/edit/b.md"') < body.index(b"/edit/sub/a.md")
+    assert b'<span class="folder">sub/</span>a.md' in body
+
+
+def test_only_markdown_under_root(tmp_path):
+    (tmp_path / "doc.md").write_text("Hola\n")
+    doc_app = create_app(tmp_path / "dentro", "secret")
+    # Paths as uvicorn passes them, already percent-decoded (%2E%2E arrives as "..").
+    for path in ["/edit/../doc.md", "/edit/sub/../../doc.md", "/edit/x.txt", "/edit//etc/x.md"]:
+        assert get(cookie="secret", path=path, app=doc_app)[0] == 404, path
+
+
+def test_when():
+    now = datetime(2026, 10, 21, 20, 41)
+    assert when(datetime(2026, 10, 21, 9, 5).timestamp(), now) == "hoy, 9:05"
+    assert when(datetime(2026, 10, 20, 23, 0).timestamp(), now) == "ayer, 23:00"
+    assert when(datetime(2026, 3, 3).timestamp(), now) == "3 mar"
+    assert when(datetime(2025, 12, 31).timestamp(), now) == "31 dic 2025"
