@@ -90,4 +90,4 @@ docs/DESIGN.md
 
 ## Estado
 
-Hito en curso: M5. Actualiza esta línea al cerrar cada hito.
+Hito en curso: M6. Actualiza esta línea al cerrar cada hito.

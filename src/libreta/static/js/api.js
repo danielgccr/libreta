@@ -33,3 +33,12 @@ export async function run(text, line, inline, onItem) {
 
 export const interrupt = () => request("/interrupt");
 export const restart = () => request("/restart");
+
+// kind "complete" or "signature": jedi's help at a cursor of the document (DESIGN §6.6).
+export async function assist(kind, text, line, column) {
+  const response = await request(`/${kind}`, {
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, line, column }),
+  });
+  return response.json();
+}

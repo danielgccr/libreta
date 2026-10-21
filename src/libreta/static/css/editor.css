@@ -181,6 +181,50 @@ body {
   opacity: 0.45; /* computed on a state the code above no longer gives (DESIGN §4.7) */
 }
 
+/* Completion list and call signature, at the caret (DESIGN §6.6). */
+.complete,
+.signature {
+  position: absolute;
+  z-index: 1;
+  margin: 0;
+  font-family: var(--font-code);
+  font-size: 0.875em;
+  line-height: 1.5;
+  white-space: nowrap;
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.complete {
+  list-style: none;
+  padding: 0.25em 0;
+  min-width: 20ch;
+  max-height: 12lh;
+  overflow-y: auto;
+}
+.complete li {
+  display: flex;
+  justify-content: space-between;
+  gap: 2ch;
+  padding-inline: 1ch;
+  cursor: default;
+}
+.complete li.selected {
+  background-color: var(--selection);
+}
+.complete .type,
+.signature {
+  color: var(--text-muted);
+}
+.signature {
+  padding: 0.1em 1ch;
+  transform: translateY(-100%);
+}
+.signature .current {
+  color: var(--text-strong);
+}
+
 /* Python */
 .tok-kw { color: var(--hl-keyword); }
 .tok-builtin { color: var(--hl-builtin); }

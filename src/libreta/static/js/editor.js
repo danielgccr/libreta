@@ -17,6 +17,7 @@ import {
   revealCaret,
   serialize,
 } from "./blocks.js";
+import { closeAssist, handleAssistInput, handleAssistKey } from "./complete.js";
 import { handlePythonKey } from "./keys.js";
 
 const main = document.getElementById("doc");
@@ -114,6 +115,7 @@ main.addEventListener("input", (event) => {
   delete block.dataset.virtual;
   paint(block);
   if (!isPython(block)) paintNotes(block);
+  handleAssistInput(event);
   revealCaret(event.target);
   showDirty();
 });
@@ -141,6 +143,11 @@ document.addEventListener("keydown", (event) => {
       return;
     }
     if (!(mod && key === "a")) selectAll(false);
+  }
+  // First: with the completion list open, arrows, Enter, Tab and Escape are its own.
+  if (event.target.tagName === "TEXTAREA" && handleAssistKey(event, event.target)) {
+    event.preventDefault();
+    return;
   }
   if (mod && key === "s") {
     event.preventDefault();
@@ -212,7 +219,11 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-document.addEventListener("mousedown", () => selectAll(false));
+document.addEventListener("mousedown", () => {
+  selectAll(false);
+  closeAssist();
+});
+main.addEventListener("focusout", closeAssist);
 window.addEventListener("beforeunload", (event) => {
   if (isDirty()) event.preventDefault();
 });

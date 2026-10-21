@@ -181,6 +181,13 @@ function caretOffset(textarea) {
   return { left: marker.left - box.left, top: marker.top - box.top, height: box.height, lineHeight };
 }
 
+// Page coordinates of the caret's line: where completion lists and signatures go.
+export function caretPoint(textarea) {
+  const { left, top, lineHeight } = caretOffset(textarea);
+  const box = textarea.closest(".block").querySelector("pre").getBoundingClientRect();
+  return { x: box.left + left + scrollX, y: box.top + top + scrollY, lineHeight };
+}
+
 // Visual line of the caret and the block's number of visual lines.
 export function caretLine(textarea) {
   const { top, height, lineHeight } = caretOffset(textarea);

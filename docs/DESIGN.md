@@ -236,7 +236,10 @@ y `getBoundingClientRect()`.
   estático con los objetos vivos: completa columnas de un DataFrame ya cargado y también
   imports que aún no se han ejecutado. Firmas con `get_signatures()`.
 - El código que se pasa a jedi es el de todos los bloques de Python hasta el actual.
-- Disparo: al escribir `.` o `["`, y con Ctrl+Espacio; con debounce.
+- Disparo: al escribir `.` o `["`, y con Ctrl+Espacio; con debounce. La lista llega una
+  vez y el cliente la filtra mientras se sigue escribiendo el nombre; los nombres con `_`
+  inicial solo aparecen si se ha escrito `_`. Las firmas se piden al escribir `(` y `,`.
+- Mientras se ejecuta un bloque no hay ayuda: el worker está ocupado.
 - Funciona también dentro de `` `py ...` `` en el Markdown.
 - Transporte: `fetch` con JSON (no HTMX).
 - Posición del desplegable: `<span>` marcador en la posición del cursor dentro del `<pre>`.
@@ -268,7 +271,9 @@ Endpoints:
   `inline: true`, `line` es la de un bloque de Markdown y se evalúan sus expresiones.
   Una sola petición: ni id de ejecución ni `EventSource`.
 - `POST /interrupt`, `POST /restart`.
-- `POST /complete`, `POST /signature` (JSON, M6).
+- `POST /complete`, `POST /signature` `{text, line, column}` (cursor en el documento):
+  `[{name, complete, type}]` (`complete` es lo que se inserta en el cursor) y
+  `[{name, params, index}]`.
 
 ## 8. CLI
 
