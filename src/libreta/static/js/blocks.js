@@ -128,8 +128,8 @@ export function focusBlock(block, where) {
 }
 
 // Ctrl+Alt+I. In Markdown, split the block at the caret and put a Python block in between;
-// in Python, add one after. The tail leaves the block via execCommand, so undo keeps working
-// inside it (undo cannot follow text across blocks).
+// in Python, add one after. The tail leaves the block via execCommand, so undoing that in the
+// block brings the tail back, and recordMove() takes the new blocks away.
 export function insertPython(main, textarea) {
   const block = textarea.closest(".block");
   const python = createBlock("python");
@@ -147,7 +147,9 @@ export function insertPython(main, textarea) {
     }
     if (cut === 0) block.dataset.virtual = "1";
     block.after(python);
-    if (rest) python.after(createBlock("markdown", rest));
+    const tail = rest ? [python, createBlock("markdown", rest)] : [python];
+    python.after(...tail.slice(1));
+    if (cut < value.length) recordMove(textarea, value, tail, []);
   }
   normalize(main);
   focusBlock(python, "start");
@@ -185,12 +187,54 @@ export function removePython(block) {
     focusBlock(next, "start");
   } else {
     const textarea = textareaOf(prev);
-    const join = textarea.value.length;
+    const before = textarea.value;
     focusBlock(prev, "end");
     document.execCommand("insertText", false, "\n" + textareaOf(next).value);
-    textarea.setSelectionRange(join, join);
+    textarea.setSelectionRange(before.length, before.length);
     next.remove();
+    recordMove(textarea, before, [], [block, next]);
   }
+}
+
+// Native undo lives in each textarea and cannot follow text across blocks. A split or a join
+// changes the text of one textarea through execCommand and adds or removes whole blocks
+// after it: recorded here, the blocks follow when that textarea's own undo or redo takes
+// its text back to the other side of the move.
+const moves = [];
+
+function recordMove(textarea, before, inserted, removed) {
+  const snapshot = (blocks) => blocks.map((b) => [b, textareaOf(b).value]);
+  const virtual = "virtual" in textarea.closest(".block").dataset;
+  moves.push({ textarea, before, after: textarea.value, virtual, inserted: snapshot(inserted), removed: snapshot(removed) });
+}
+
+// Blocks a move would take away must be as it left them: edited since, they would lose text.
+const untouched = (blocks) => blocks.every(([b, value]) => b.isConnected && textareaOf(b).value === value);
+
+// beforeinput: an undo or redo that may reach a move whose blocks were edited since is refused.
+export function guardHistory(event) {
+  const undo = event.inputType === "historyUndo";
+  const textarea = event.target;
+  const stuck = moves.some(
+    (m) => m.textarea === textarea && textarea.value === (undo ? m.after : m.before) && !untouched(undo ? m.inserted : m.removed),
+  );
+  if (stuck) event.preventDefault();
+}
+
+// input: after an undo or redo, the blocks of the move it crossed, if any. True if it did.
+export function followHistory(main, textarea, inputType) {
+  const undo = inputType === "historyUndo";
+  const move = moves.findLast((m) => m.textarea === textarea && textarea.value === (undo ? m.before : m.after));
+  if (!move) return false;
+  const [gone, back] = undo ? [move.inserted, move.removed] : [move.removed, move.inserted];
+  if (!untouched(gone) || back.some(([b]) => b.isConnected)) return false;
+  for (const [b] of gone) b.remove();
+  const block = textarea.closest(".block");
+  if (block.nextElementSibling && "virtual" in block.nextElementSibling.dataset) block.nextElementSibling.remove();
+  block.after(...back.map(([b]) => b));
+  if (!undo && move.virtual) block.dataset.virtual = "1";
+  normalize(main);
+  return true;
 }
 
 // Caret position measured with a marker <span> in the <pre>, which has the textarea's exact

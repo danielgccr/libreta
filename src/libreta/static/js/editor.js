@@ -7,6 +7,8 @@ import {
   clearOutput,
   createBlock,
   focusBlock,
+  followHistory,
+  guardHistory,
   insertFootnote,
   insertPython,
   isPython,
@@ -186,12 +188,20 @@ async function run(block) {
   }
 }
 
+main.addEventListener("beforeinput", (event) => {
+  if (event.inputType.startsWith("history")) guardHistory(event);
+});
+
 main.addEventListener("input", (event) => {
   const block = event.target.closest(".block");
   if (isPython(block)) markStale(block);
   delete block.dataset.virtual;
   paint(block);
   if (!isPython(block)) paintNotes(block);
+  if (event.inputType?.startsWith("history") && followHistory(main, event.target, event.inputType)) {
+    markStale(block, true);
+    paintNotesNear(block);
+  }
   handleAssistInput(event);
   revealCaret(event.target);
   showDirty();

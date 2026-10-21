@@ -232,6 +232,14 @@ título exportado, y debajo la fecha del último guardado, que no se escribe. Es
 a "lo que se ve es el fichero": el YAML no se muestra; Enter o ↓ bajan del título al
 documento, ↑ desde la primera línea sube al título.
 
+El historial de deshacer es el nativo de cada textarea y no cruza bloques. Partir un
+bloque (Ctrl+Alt+I) o unir dos (Backspace o Supr sobre un bloque de Python vacío) cambia el
+texto de un solo textarea con `execCommand` y se anota: cuando el deshacer o rehacer de ese
+textarea devuelve su texto al otro lado del cambio, los bloques añadidos o quitados lo
+siguen. Si esos bloques se han editado desde entonces, el deshacer se rechaza en vez de
+duplicar o perder texto. Quitar o añadir un bloque de Python vacío sin mover texto no se
+deshace con Ctrl+Z.
+
 Cada título de Markdown (`#`, `##`...) abre un bloque nuevo, de modo que el bloque puede
 recibir el margen superior correspondiente al título y el ritmo vertical del editor se
 parece al del documento exportado. Para el usuario sigue siendo una hoja continua: sin
