@@ -80,6 +80,7 @@ pre.out {
 }
 img.out {
   display: block;
+  margin-inline: auto; /* centred like a figure in the printed page */
   max-width: 100%; /* figures fill the block at most, never more */
   height: auto;
 }
