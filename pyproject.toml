@@ -2,7 +2,22 @@
 name = "libreta"
 version = "0.1.0"
 description = "Cuaderno de Python minimalista centrado en la prosa"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Daniel" }]
 requires-python = ">=3.12"
+keywords = ["notebook", "markdown", "literate-programming", "knitr", "rmarkdown"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: Spanish",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Text Processing :: Markup :: Markdown",
+]
 dependencies = [
     "jedi>=0.20.1",
     "jinja2>=3.1.6",
@@ -12,6 +27,10 @@ dependencies = [
 
 [project.scripts]
 libreta = "libreta.cli:main"
+
+[project.urls]
+Repository = "https://github.com/danielgccr/libreta"
+Documentation = "https://github.com/danielgccr/libreta/blob/master/docs/DESIGN.md"
 
 [tool.uv]
 default-groups = ["dev", "ejemplos"]  # pandas & co. for the examples, not the package

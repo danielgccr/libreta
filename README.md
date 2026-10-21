@@ -26,10 +26,10 @@ La edad media es `py round(df.edad.mean(), 1)` años.
 Hace falta Python 3.12 o posterior, en Linux o macOS.
 
 ```sh
-uv tool install git+https://github.com/danielgccr/libreta
+uv tool install libreta
 ```
 
-o con pip, `pip install git+https://github.com/danielgccr/libreta`.
+o con pip, `pip install libreta`.
 
 Opcionales:
 
@@ -130,3 +130,7 @@ uv run ruff check . && uv run ruff format .
 El backend es Starlette, uvicorn, Jinja2 y jedi. El editor es JavaScript sin
 dependencias ni paso de build: textareas con un overlay resaltado por un tokenizador
 propio. El diseño completo, con sus razones, está en [docs/DESIGN.md](docs/DESIGN.md).
+
+## Licencia
+
+[GNU GPL v3](LICENSE) o posterior.
