@@ -230,7 +230,8 @@ nombres tras `def` y `class`, y strings con prefijos (`r`, `b`, `f`, `rb`, `fr`.
 módulos importados que el entorno no tiene (`import pandas` sin pandas instalado) van en
 gris: el servidor manda al cargar la página los módulos importables (`pkgutil` sobre la
 carpeta del documento y `sys.path`, más los de las distribuciones instaladas) y el
-tokenizador mira el primer nombre de cada `import`/`from`. Los
+tokenizador mira el primer nombre de cada `import`/`from`. La lista se pide de
+nuevo (`GET /modules`) cuando la ventana recupera el foco: tras un `uv add` en la terminal. Los
 triple-quoted abarcan varias líneas, así que el tokenizador arrastra estado entre líneas.
 En v1 un f-string se colorea entero como string.
 

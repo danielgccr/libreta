@@ -298,3 +298,6 @@ def test_modules(tmp_path):
     names = set(modules(tmp_path))
     assert {"json", "sys", "starlette", "local_helper"} <= names
     assert "no_such_module_here" not in names
+    doc_app = create_app(tmp_path / "doc.md", "secret")
+    status, _, body = get(path="/modules", cookie="secret", app=doc_app)
+    assert status == 200 and "local_helper" in json.loads(body)

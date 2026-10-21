@@ -250,8 +250,7 @@ def create_app(path: Path, token: str) -> Starlette:
             "front": front,
             "title": front_value(front, "title") or "",
             "date": front_value(front, "date"),
-            # ponytail: read once per page load; reload after installing a package.
-            "modules": modules(path.parent.resolve()),
+            "modules": modules(path.parent.resolve()),  # again on focus: GET /modules
         }
         return templates.TemplateResponse(request, "editor.html", {"name": path.name, "doc": doc})
 
@@ -289,6 +288,9 @@ def create_app(path: Path, token: str) -> Starlette:
         kind = request.url.path.strip("/")
         return JSONResponse(await run_in_threadpool(session.assist, kind, *point))
 
+    async def get_modules(request: Request):
+        return JSONResponse(await run_in_threadpool(modules, path.parent.resolve()))
+
     async def interrupt(request: Request):
         session.interrupt()
         return Response(status_code=204)
@@ -309,6 +311,7 @@ def create_app(path: Path, token: str) -> Starlette:
             Route("/run", run, methods=["POST"]),
             Route("/complete", assist, methods=["POST"]),
             Route("/signature", assist, methods=["POST"]),
+            Route("/modules", get_modules),
             Route("/interrupt", interrupt, methods=["POST"]),
             Route("/restart", restart, methods=["POST"]),
             Mount("/static", RevalidatedStaticFiles(directory=HERE / "static"), name="static"),
