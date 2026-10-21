@@ -110,7 +110,9 @@ Comunicación con el servidor por pipe con mensajes serializados. Nada de kernel
    `SyntaxError`) para que los tracebacks apunten a la línea real del fichero.
 3. stdout y stderr se capturan y se emiten en streaming, intercalados en orden con las
    figuras y los valores mostrados. La salida de un bloque es una lista ordenada de
-   elementos `(mime, contenido)`.
+   elementos `(mime, contenido)`. Un retorno de carro (`\r`) reescribe su línea, como en
+   una terminal: las barras de progreso (tqdm) muestran y guardan en caché una sola línea,
+   no cada fotograma. Las escrituras seguidas a un mismo flujo se guardan juntas.
 4. Errores: traceback recortado a los frames del código del usuario, mostrado dentro del
    bloque gris con un tono rojo apagado.
 

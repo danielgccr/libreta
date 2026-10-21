@@ -215,13 +215,25 @@ export function clearOutput(block) {
   block.querySelector(".output").replaceChildren();
 }
 
+// A carriage return rewrites its line, as in a terminal (progress bars): keep what follows
+// the last one. A trailing \r waits for the text that replaces the line. Twin of
+// collapse() in libreta/display.py.
+function collapse(text) {
+  return text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.slice(line.lastIndexOf("\r", line.length - 2) + 1))
+    .join("\n");
+}
+
 const FIGURE_WIDTH = 6.8 * 96; // px: figure.figsize in libreta/_mpl.py, in CSS pixels
 
 export function appendOutput(block, { mime, content, base64 }) {
   const output = block.querySelector(".output");
   const last = output.lastElementChild;
   if ((mime === "stdout" || mime === "stderr") && last?.dataset.stream === mime) {
-    last.append(content); // ponytail: no \r handling, progress bars print every frame
+    if (content.includes("\r")) last.textContent = collapse(last.textContent + content);
+    else last.append(content);
     return;
   }
   let element;
@@ -239,7 +251,7 @@ export function appendOutput(block, { mime, content, base64 }) {
       : `data:${mime};charset=utf-8,${encodeURIComponent(content)}`;
   } else {
     element = document.createElement("pre"); // streams, errors, text/plain, text/markdown (v1)
-    element.textContent = content;
+    element.textContent = content.includes("\r") ? collapse(content) : content;
   }
   element.className = `out ${mime.replace(/\W/g, "-")}`;
   if (mime === "stdout" || mime === "stderr") element.dataset.stream = mime;

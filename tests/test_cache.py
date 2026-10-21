@@ -35,3 +35,15 @@ def test_corrupt_entry_is_missing(tmp_path):
     cache.save(h, [])
     (cache.dir / f"{h}.json").write_text('[{"mime": ')
     assert cache.load(h) is None
+
+
+def test_progress_bars_are_saved_collapsed(tmp_path):
+    cache = Cache(tmp_path / "doc.md")
+    [h] = chain(["a"])
+    frames = [("stderr", f"\r{i:3}%") for i in range(101)]
+    cache.save(h, [("stdout", "a"), ("stdout", "b\n"), *frames, ("stderr", "\n"), ("stdout", "c")])
+    assert cache.load(h) == [
+        {"mime": "stdout", "content": "ab\n"},
+        {"mime": "stderr", "content": "100%\n"},
+        {"mime": "stdout", "content": "c"},
+    ]

@@ -1,6 +1,6 @@
 import ast
 
-from libreta.display import represent, split_last_expression
+from libreta.display import collapse, represent, split_last_expression
 
 
 class Html:
@@ -86,3 +86,11 @@ def test_mimebundle_and_latex():
             return {"image/png": "iVBORw=="}
 
     assert represent(Png()) == ("image/png", b"\x89PNG")
+
+
+def test_collapse():
+    assert collapse("a\rb\rc\nd") == "c\nd"
+    assert collapse(" 10%\r 20%\r") == " 20%\r"  # a trailing \r waits
+    assert collapse(" 20%\r" + "\r 30%") == " 30%"
+    assert collapse("fin\r" + "\n") == "fin\n"  # \r\n split across two writes
+    assert collapse("sin retornos\n") == "sin retornos\n"

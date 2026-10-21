@@ -61,6 +61,14 @@ def _silenced(source: str, node: ast.expr | ast.stmt) -> bool:
     return rest.lstrip().startswith(";")
 
 
+def collapse(text: str) -> str:
+    """A carriage return rewrites its line, as in a terminal (progress bars): keep what
+    follows the last one. A trailing \r waits for the text that replaces the line.
+    Twin of collapse() in static/js/blocks.js."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    return "\n".join(line[line.rfind("\r", 0, len(line) - 1) + 1 :] for line in lines)
+
+
 class Stream(io.TextIOBase):
     """sys.stdout/sys.stderr replacement: every write becomes one output item."""
 

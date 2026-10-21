@@ -15,6 +15,10 @@ from collections.abc import Iterable
 from itertools import accumulate
 from pathlib import Path
 
+from libreta.display import collapse
+
+STREAMS = ("stdout", "stderr")
+
 GENESIS = hashlib.sha256(b"").hexdigest()  # the chain before the first block: empty namespace
 
 
@@ -55,7 +59,7 @@ class Cache:
         for old in self.dir.glob(f"{h}*"):
             old.unlink()
         record = []
-        for n, (mime, content) in enumerate(items):
+        for n, (mime, content) in enumerate(_merged(items)):
             if mime.startswith("image/"):
                 name = f"{h}-{n}{mimetypes.guess_extension(mime) or ''}"
                 data = content.encode() if isinstance(content, str) else content
@@ -82,3 +86,15 @@ class Cache:
             for file in self.dir.iterdir():
                 if file.name[:64] not in keep:
                     file.unlink()
+
+
+def _merged(items: list[tuple[str, str | bytes]]) -> list[tuple[str, str | bytes]]:
+    """Consecutive writes to a stream as one item, as the editor shows them, with progress
+    bars' carriage returns applied: a loop of 10 000 updates keeps one line."""
+    merged: list[tuple[str, str | bytes]] = []
+    for mime, content in items:
+        if mime in STREAMS and merged and merged[-1][0] == mime:
+            merged[-1] = (mime, merged[-1][1] + content)
+        else:
+            merged.append((mime, content))
+    return [(m, collapse(c) if m in STREAMS and "\r" in c else c) for m, c in merged]
