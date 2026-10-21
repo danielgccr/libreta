@@ -100,9 +100,10 @@ def export(path: Path, to: str, css: list[Path]) -> int:
     """Knit the document from its cache (running it first if the cache is incomplete) into
     <name>.knit.md, and convert that with Pandoc when it is installed (DESIGN §10).
     Errors stay in the document, as in the editor; they make the exit status 1."""
-    if not path.is_file():
-        print(f"libreta: no existe {path}", file=sys.stderr)
-        return 2
+    for file in [path, *css]:
+        if not file.is_file():
+            print(f"libreta: no existe {file}", file=sys.stderr)
+            return 2
     if not complete(path):
         print(f"libreta: la caché no está completa; se ejecuta {path}", file=sys.stderr)
         if run(path, keep_going=True) == 130:
@@ -124,7 +125,7 @@ def export(path: Path, to: str, css: list[Path]) -> int:
         engine = "weasyprint" if shutil.which("weasyprint") else "typst"
         command += ["--pdf-engine", engine]
     if to == "html" or engine == "weasyprint":
-        command += ["--to", "html5", "--standalone", "--embed-resources", "--mathml"]
+        command += ["--to", "html5", "--standalone", "--embed-resources", _mathml()]
         command += ["--template", str(HERE / "templates" / "export.html")]
         sheets = [HERE / "static" / "css" / "tokens.css", HERE / "static" / "css" / "export.css"]
         for sheet in [*sheets, *css]:
@@ -133,6 +134,13 @@ def export(path: Path, to: str, css: list[Path]) -> int:
         return status
     print(f"libreta: {output}")
     return 1 if problems else 0
+
+
+def _mathml() -> str:
+    """Pandoc's MathML option: --math-method in recent versions, which warn about --mathml;
+    older ones only know --mathml."""
+    help_text = subprocess.run(["pandoc", "--help"], capture_output=True, text=True).stdout
+    return "--math-method=mathml" if "--math-method" in help_text else "--mathml"
 
 
 def edit(path: Path) -> None:

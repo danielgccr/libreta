@@ -51,3 +51,11 @@ def test_run_inline_values(tmp_path, capsys):
     assert "`py y`: NameError: name 'y' is not defined" in capsys.readouterr().err
     [h] = chain(["x = 2\n"])
     assert Cache(path).load_values(h)["x * 21"] == {"text": "42"}
+
+
+def test_export_missing_css(tmp_path, capsys):
+    path = tmp_path / "doc.md"
+    path.write_text("Hola\n")
+    assert main(["export", str(path), "--css", str(tmp_path / "mio.css")]) == 2
+    assert "no existe" in capsys.readouterr().err
+    assert not (tmp_path / "doc.knit.md").exists()  # checked before doing anything

@@ -14,3 +14,7 @@ build/
 
 # Caché de documentos de libreta (ver docs/DESIGN.md, decisión abierta)
 .libreta/
+
+# Productos intermedios de `libreta export`
+*.knit.md
+*_files/
