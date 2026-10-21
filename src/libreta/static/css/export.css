@@ -1,0 +1,229 @@
+/* The editorial sheet of the exported document (Pandoc HTML, DESIGN §9). The editor is its
+   proof: same column, palette, line height and grey block. Here, unlike in the editor, the
+   text may vary its metrics: heading sizes and weights, ligatures, balanced lines.
+   Vertical rhythm is in lh only. */
+
+html {
+  font-family: var(--font-text);
+  font-size: var(--font-base);
+  line-height: 1.6;
+  background-color: var(--bg);
+  color: var(--text);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: var(--measure);
+  margin-inline: auto;
+  padding: 3lh 1.5rem;
+  text-wrap: pretty;
+}
+
+p,
+ul,
+ol,
+dl,
+blockquote,
+pre,
+table,
+figure,
+.chunk {
+  margin-block: 1lh;
+}
+
+/* Headings */
+h1,
+h2,
+h3,
+h4 {
+  color: var(--text-strong);
+  font-weight: 700;
+  text-wrap: balance;
+}
+h1 {
+  font-size: 2.1rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-block: 0 1lh;
+}
+h2 {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin-block: 1.5lh 0.5lh;
+}
+h3 {
+  font-size: 1.25rem;
+  line-height: 1.3;
+  margin-block: 1.25lh 0.5lh;
+}
+h4 {
+  font-size: 1rem;
+  margin-block: 1lh 0.5lh;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  transition: text-decoration-color 0.15s ease;
+}
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+blockquote {
+  margin-inline: 0;
+  padding-inline-start: 1.25ch;
+  border-inline-start: 3px solid var(--accent);
+  color: var(--text-muted);
+  font-style: italic;
+}
+blockquote > p {
+  margin-block: 0.5lh;
+}
+
+ul,
+ol {
+  padding-inline-start: 3ch;
+}
+li {
+  margin-block: 0.25lh;
+}
+
+hr {
+  border: 0;
+  border-block-start: 1px solid var(--border);
+  margin-block: 2lh;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
+figcaption {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+math[display="block"] {
+  overflow-x: auto;
+}
+
+/* Code: monospaced, no ligatures (they hide what is typed). */
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-code);
+  font-variant-ligatures: none;
+}
+:not(pre) > code {
+  font-size: 0.875em;
+  background-color: var(--code-bg);
+  padding: 0.15em 0.4ch;
+  border-radius: 3px;
+}
+pre {
+  font-size: 0.875em;
+  line-height: 1.5;
+  background-color: var(--code-bg);
+  padding: 0.75lh 1.25ch;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+/* A Python block and what it produced, as the editor's grey block. */
+.chunk {
+  font-family: var(--font-code);
+  font-size: 0.875em;
+  line-height: 1.5;
+  background-color: var(--code-bg);
+  border-radius: 4px;
+  padding: 0.75lh 1.25ch;
+}
+.chunk > * {
+  margin-block: 0;
+}
+.chunk > * + * {
+  margin-block-start: 0.5lh;
+}
+.chunk > .sourceCode + * {
+  margin-block-start: 0.75lh;
+  padding-block-start: 0.75lh;
+  border-block-start: 1px solid var(--rule);
+}
+.chunk .sourceCode > pre {
+  margin: 0; /* the code's own <pre>, inside Pandoc's div */
+}
+.chunk pre {
+  font-size: inherit;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+pre.output {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+pre.stderr {
+  color: var(--text-muted);
+}
+pre.error {
+  color: var(--error);
+}
+
+table {
+  border-collapse: collapse;
+}
+:is(th, td) {
+  padding: 0.1lh 1ch;
+  border: 0;
+  border-block-end: 1px solid var(--border);
+}
+.chunk :is(th, td) {
+  text-align: right;
+}
+.chunk > div:has(> table) {
+  overflow-x: auto;
+}
+
+/* Pandoc's code tokens in the editor's colours. */
+code span:is(.kw, .cf, .im) {
+  color: var(--hl-keyword);
+}
+code span:is(.bu, .fu, .ex) {
+  color: var(--hl-builtin);
+}
+code span:is(.st, .ch, .vs, .ss, .sc) {
+  color: var(--hl-string);
+}
+code span:is(.dv, .bn, .fl, .cn) {
+  color: var(--hl-number);
+}
+code span:is(.co, .do, .an, .cv) {
+  color: var(--hl-comment);
+}
+code span:is(.at, .pp) {
+  color: var(--hl-decorator);
+}
+
+/* matplotlib draws black on transparent: in the dark palette, figures are inverted (the
+   hue turned back, so colours stay close to the original). */
+@media (prefers-color-scheme: dark) {
+  img[src^="data:image/svg"],
+  img[src$=".svg"] {
+    filter: invert(1) hue-rotate(180deg);
+  }
+}

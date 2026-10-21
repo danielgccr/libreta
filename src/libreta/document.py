@@ -12,6 +12,7 @@ are read as list items; HTML blocks and setext headings are not recognised.
 """
 
 import re
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Literal
 
@@ -133,12 +134,26 @@ def expressions(blocks: list[Block]) -> list[list[str]]:
     return sections
 
 
+def substitute(markdown: str, value: Callable[[str], str | None]) -> str:
+    """`markdown` with each inline `py` span replaced by value(expression), or kept as it is
+    where that gives None (DESIGN §10)."""
+    lines = markdown.splitlines(keepends=True)
+    for i, m in reversed(list(_py_spans(markdown))):  # right to left: offsets stay valid
+        text = value(_expression(m))
+        if text is not None:
+            lines[i] = lines[i][: m.start()] + text + lines[i][m.end() :]
+    return "".join(lines)
+
+
 def _inline_python(markdown: str) -> list[str]:
-    """Code spans starting with `py `, line by line outside fences: the same ones
-    md-highlight.js colours, so the editor finds a value for each of them."""
-    found = []
+    return [_expression(m) for _, m in _py_spans(markdown)]
+
+
+def _py_spans(markdown: str) -> Iterator[tuple[int, re.Match[str]]]:
+    """(line index, match) of each code span starting with `py `, line by line outside
+    fences: the same ones md-highlight.js colours, so the editor finds a value for each."""
     fence = None
-    for line in markdown.splitlines():
+    for i, line in enumerate(markdown.splitlines()):
         if fence:
             m = FENCE_CLOSE.fullmatch(line)
             if m and m[1][0] == fence[0] and len(m[1]) >= len(fence):
@@ -146,9 +161,13 @@ def _inline_python(markdown: str) -> list[str]:
         elif opening := _fence_open(line):
             fence = opening[1]
         else:
-            spans = (m[2] for m in CODE_SPAN.finditer(line) if m[2])
-            found += [code[2:].strip() for code in spans if INLINE_PY.match(code)]
-    return found
+            for m in CODE_SPAN.finditer(line):
+                if m[2] and INLINE_PY.match(m[2]):
+                    yield i, m
+
+
+def _expression(span: re.Match[str]) -> str:
+    return span[2][2:].strip()
 
 
 def code_at(text: str, line: int, column: int) -> tuple[str, int, int] | None:

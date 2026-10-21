@@ -42,6 +42,7 @@ el formato de fichero o la caché:
 - Entorno: `uv sync`
 - Editor: `uv run libreta edit ejemplos/demo.md`
 - Ejecución sin navegador: `uv run libreta run ejemplos/demo.md`
+- Exportación: `uv run libreta export ejemplos/demo.md [--to pdf]`
 - Tests: `uv run pytest`
 - Lint y formato: `uv run ruff check . && uv run ruff format .`
 
@@ -90,4 +91,4 @@ docs/DESIGN.md
 
 ## Estado
 
-Hito en curso: M6. Actualiza esta línea al cerrar cada hito.
+Hito en curso: M7. Actualiza esta línea al cerrar cada hito.

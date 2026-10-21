@@ -1,0 +1,21 @@
+$-- Pandoc template for `libreta export` (HTML). No $$highlighting-css$$: export.css
+$-- colours the code with the editor's palette.
+<!doctype html>
+<html$if(lang)$ lang="$lang$"$endif$>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>$pagetitle$</title>
+$for(css)$
+  <link rel="stylesheet" href="$css$">
+$endfor$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+</head>
+<body>
+<main>
+$body$
+</main>
+</body>
+</html>

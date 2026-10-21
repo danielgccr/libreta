@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from libreta.document import code_at, expressions, parse, serialize
+from libreta.document import code_at, expressions, parse, serialize, substitute
 
 EJEMPLOS = sorted((Path(__file__).parent.parent / "ejemplos").glob("*.md"))
 
@@ -172,3 +172,11 @@ def test_code_at():
     assert code_at(text, 6, 0) is None  # the closing fence
     assert code_at(text, 9, 0) == ("import os\nos.pa\n", 3, 0)  # an empty block
     assert code_at(text, 10, 13) == ("import os\nos.pa\nos.pa", 3, 5)  # typing, unclosed
+
+
+def test_substitute():
+    markdown = "Son `py a` y `py b`, no `py c`.\r\n```bash\n`py a`\n```\nY `py a`\n"
+    values = {"a": "1", "b": "**2**"}
+    assert substitute(markdown, values.get) == (
+        "Son 1 y **2**, no `py c`.\r\n```bash\n`py a`\n```\nY 1\n"
+    )

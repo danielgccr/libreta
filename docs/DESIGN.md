@@ -291,7 +291,10 @@ Endpoints:
   informa de errores con línea del `.md`. Código de salida distinto de cero si falla algún
   bloque. Pensado para terminal, cron y CI.
 - `libreta export doc.md [--to html|pdf] [--css ...]` genera el Markdown tejido (§10) y, si
-  Pandoc está instalado, lo convierte.
+  Pandoc está instalado, lo convierte. Si a la caché le falta algo, ejecuta antes el
+  documento entero; a diferencia de `run`, sigue tras un error, que queda en el documento
+  como en el editor. El código de salida es 1 si el documento exportado contiene errores.
+  `--css` añade hojas detrás de `tokens.css` y `export.css` (sirve para retocar).
 
 ## 9. Estilo
 
@@ -300,7 +303,8 @@ Dos capas sobre los mismos tokens:
 - `tokens.css`: paleta, medida, tamaños base, `--code-bg`, `--accent`. Incluye la paleta
   oscura bajo `@media (prefers-color-scheme: dark)`. Si se declara `color-scheme: light dark`,
   la paleta oscura es obligatoria (si no, los controles nativos se pintan oscuros sobre
-  fondo claro).
+  fondo claro). En oscuro, las figuras SVG se invierten (`invert(1) hue-rotate(180deg)`):
+  matplotlib dibuja en negro sobre transparente.
 - `export.css`: la hoja editorial para Pandoc HTML (títulos con tamaño y peso, ligaduras en
   la prosa, `text-wrap`, etc.).
 - `editor.css`: misma columna, fondo, paleta, interlineado y bloque gris; sin variaciones
@@ -323,6 +327,18 @@ Mismo esquema que RMarkdown: libreta produce un Markdown "tejido" a partir del `
 la caché (valores `py` sustituidos, figuras como ficheros enlazados, salida de texto en
 fences, HTML de tablas incrustado), y Pandoc lo convierte con `export.css`. Sin Pandoc,
 `libreta export` deja el Markdown tejido.
+
+- Ficheros junto al documento: `doc.knit.md`, las figuras en `doc_files/` y `doc.html` (o
+  `doc.pdf`).
+- Cada bloque de Python con su salida va en un div `::: {.chunk}`: el bloque gris del
+  editor. Texto en fences `{.output}` (`.stderr`, `.error`), HTML como bloque crudo
+  `{=html}`, `_repr_markdown_` tal cual, figuras con `{width=NN%}` a la escala del editor.
+  El Markdown tejido es entrada de Pandoc (`commonmark_x`), no un documento para GitHub.
+- HTML autocontenido (`--embed-resources`), matemáticas en MathML (sin JavaScript) y una
+  plantilla propia (`templates/export.html`) sin el CSS de resaltado de Pandoc: `export.css`
+  colorea sus clases con la paleta del editor.
+- PDF: con WeasyPrint si está (respeta `export.css`); si no, typst, que maqueta a su manera
+  y omite el HTML crudo (tablas).
 
 ## 11. Seguridad
 

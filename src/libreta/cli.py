@@ -1,6 +1,8 @@
 import argparse
 import secrets
+import shutil
 import socket
+import subprocess
 import sys
 import webbrowser
 from pathlib import Path
@@ -10,8 +12,10 @@ import uvicorn
 from libreta.app import create_app
 from libreta.cache import GENESIS, Cache, chain
 from libreta.document import expressions, parse
+from libreta.knit import complete, knit
 from libreta.worker import Worker
 
+HERE = Path(__file__).parent
 STREAMS = {"stdout", "stderr", "error"}
 STDERR = {"stderr", "error"}
 VALUES = {"text/plain", "text/markdown"}
@@ -24,16 +28,24 @@ def main(argv: list[str] | None = None) -> int:
     edit_parser.add_argument("path", type=Path)
     run_parser = commands.add_parser("run", help="run a document top to bottom")
     run_parser.add_argument("path", type=Path)
+    export_parser = commands.add_parser("export", help="knit the document and convert it")
+    export_parser.add_argument("path", type=Path)
+    export_parser.add_argument("--to", choices=["html", "pdf"], default="html")
+    export_parser.add_argument(
+        "--css", type=Path, action="append", default=[], help="extra style sheet (HTML)"
+    )
     args = parser.parse_args(argv)
     if args.command == "run":
         return run(args.path)
+    if args.command == "export":
+        return export(args.path, args.to, args.css)
     edit(args.path)
     return 0
 
 
-def run(path: Path) -> int:
+def run(path: Path, keep_going: bool = False) -> int:
     """Run every block in a fresh worker, caching its output; stop at the first error
-    (exit status 1)."""
+    (exit status 1), or with `keep_going` run the rest anyway."""
     if not path.is_file():
         print(f"libreta: no existe {path}", file=sys.stderr)
         return 2
@@ -57,9 +69,12 @@ def run(path: Path) -> int:
             print(f"`py {expr}`: {values.get(expr, {}).get('error')}", file=sys.stderr)
         return not failed
 
+    status = 0
     try:
         if not evaluate(0):
-            return 1
+            status = 1
+            if not keep_going:
+                return status
         for i, (block, h) in enumerate(zip(blocks, keys[1:], strict=True)):
             items = []
             for mime, content in worker.run(block.code, block.line + 1, source):
@@ -71,12 +86,52 @@ def run(path: Path) -> int:
                 out.flush()  # keep stdout and stderr interleaved when redirected
             cache.save(h, items)
             if any(mime == "error" for mime, _ in items) or not evaluate(i + 1):
-                return 1
+                status = 1
+                if not keep_going:
+                    return status
     except KeyboardInterrupt:
         return 130
     finally:
         worker.close()
-    return 0
+    return status
+
+
+def export(path: Path, to: str, css: list[Path]) -> int:
+    """Knit the document from its cache (running it first if the cache is incomplete) into
+    <name>.knit.md, and convert that with Pandoc when it is installed (DESIGN §10).
+    Errors stay in the document, as in the editor; they make the exit status 1."""
+    if not path.is_file():
+        print(f"libreta: no existe {path}", file=sys.stderr)
+        return 2
+    if not complete(path):
+        print(f"libreta: la caché no está completa; se ejecuta {path}", file=sys.stderr)
+        if run(path, keep_going=True) == 130:
+            return 130
+    markdown, problems = knit(path)
+    for problem in problems:
+        print(f"libreta: {problem}", file=sys.stderr)
+    knitted = path.with_name(f"{path.stem}.knit.md")
+    knitted.write_text(markdown, encoding="utf-8")
+    if shutil.which("pandoc") is None:
+        print(f"libreta: sin Pandoc; el Markdown tejido está en {knitted}", file=sys.stderr)
+        return 1 if problems else 0
+    output = path.with_suffix(f".{to}")
+    command = ["pandoc", knitted.name, "--from", "commonmark_x", "--output", output.name]
+    command += ["--metadata", f"pagetitle={path.stem}"]
+    engine = None
+    if to == "pdf":  # WeasyPrint follows export.css; typst lays the page out on its own
+        engine = "weasyprint" if shutil.which("weasyprint") else "typst"
+        command += ["--pdf-engine", engine]
+    if to == "html" or engine == "weasyprint":
+        command += ["--to", "html5", "--standalone", "--embed-resources", "--mathml"]
+        command += ["--template", str(HERE / "templates" / "export.html")]
+        sheets = [HERE / "static" / "css" / "tokens.css", HERE / "static" / "css" / "export.css"]
+        for sheet in [*sheets, *css]:
+            command += ["--css", str(sheet.resolve())]
+    if status := subprocess.run(command, cwd=path.parent).returncode:
+        return status
+    print(f"libreta: {output}")
+    return 1 if problems else 0
 
 
 def edit(path: Path) -> None:
