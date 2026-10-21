@@ -197,6 +197,7 @@ pre.error {
 }
 
 table {
+  border: 0; /* pandas asks for border="1" */
   border-collapse: collapse;
 }
 :is(th, td) {
@@ -209,6 +210,9 @@ table {
 }
 .chunk > div:has(> table) {
   overflow-x: auto;
+}
+.chunk table {
+  margin: 0; /* inside pandas' <div>, out of reach of .chunk > * */
 }
 
 /* Pandoc's code tokens in the editor's colours. */
