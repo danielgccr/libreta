@@ -120,6 +120,14 @@ main.index .new input {
   border: 0;
   outline: none; /* the row's border shows the focus */
 }
+main.index .new:has([aria-invalid]) {
+  border-color: var(--error);
+}
+main.index .new-error {
+  margin: 0.25lh 0 0;
+  font-size: 0.875em;
+  color: var(--error);
+}
 main.index .new input::placeholder {
   color: var(--text-muted);
   opacity: 0.5;

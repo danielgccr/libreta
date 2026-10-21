@@ -372,6 +372,13 @@ def test_new_document(tmp_path):
     assert status == 303 and headers[b"location"] == b"/edit/notas/primer%20borrador.md"
     assert (tmp_path / "notas/primer borrador.md").read_text() == ""
     (tmp_path / "b.md").write_text("Hola\n")
+    os.utime(tmp_path / "b.md", (0, 0))
     assert new(b"name=b.md")[0] == 303 and (tmp_path / "b.md").read_text() == "Hola\n"
-    assert new(b"name=+")[0] == 400
-    assert new(b"name=..%2Ffuera")[0] == 404 and not (tmp_path.parent / "fuera.md").exists()
+    assert (tmp_path / "b.md").stat().st_mtime == 0  # opened, not touched
+    status, _, body = new(b"name=..%2Ffuera")
+    assert status == 400 and not (tmp_path.parent / "fuera.md").exists()
+    assert b'value="../fuera"' in body and b"dentro de esta carpeta" in body
+    assert b'aria-invalid="true"' in body
+    assert b"Escribe un nombre" in new(b"name=+")[2]
+    (tmp_path / "dir.md").mkdir()
+    assert b"No se pudo crear" in new(b"name=dir")[2]

@@ -339,7 +339,8 @@ Endpoints:
   la fecha de la última edición a la derecha ("hoy, 20:41", "21 oct", "3 mar 2025").
   Encima, una fila para crear un documento: se escribe su nombre (`.md` opcional, con
   carpetas si se quiere) y `POST /new` crea el fichero vacío y abre el editor; si ya
-  existe, solo lo abre.
+  existe, solo lo abre. Un nombre que no puede crear (sale de la carpeta, vacío, choca con
+  una carpeta) vuelve a la lista con el nombre escrito, la fila en rojo y el motivo debajo.
 - `GET /edit/<ruta>` el editor del documento. Las demás llamadas cuelgan de esa misma URL
   (`/edit/<ruta>/run`...), así que `api.js` solo necesita `location.pathname`. Encima del
   título, la ruta del documento enlaza a la lista.

@@ -303,7 +303,8 @@ def create_app(root: Path, token: str) -> Starlette:
             if other is not session and other.worker is not None:
                 await run_in_threadpool(other.restart)
 
-    async def index(request: Request):
+    async def index(request: Request, name: str = "", error: str = ""):
+        """The list; with `error`, the new-document form keeps `name` and says what failed."""
         files = [
             {
                 "href": "/edit/" + quote(rel),
@@ -314,18 +315,26 @@ def create_app(root: Path, token: str) -> Starlette:
             }
             for rel, mtime in await run_in_threadpool(markdown_files, root)
         ]
-        context = {"root": root.name or str(root), "files": files}
-        return templates.TemplateResponse(request, "index.html", context)
+        context = {"root": root.name or str(root), "files": files, "name": name, "error": error}
+        status = 400 if error else 200
+        return templates.TemplateResponse(request, "index.html", context, status_code=status)
 
     async def new(request: Request):
         """The index's form: create the document `name` (".md" optional, folders too) and
-        open it. An existing one just opens."""
+        open it. An existing one just opens; a name it cannot take, back to the list."""
         name = parse_qs((await request.body()).decode()).get("name", [""])[0].strip()
         if not name:
-            raise HTTPException(400)
-        path = markdown(name if name.endswith(".md") else name + ".md")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.touch()
+            return await index(request, name, "Escribe un nombre para el documento.")
+        try:
+            path = markdown(name if name.endswith(".md") else name + ".md")
+        except HTTPException:
+            error = "El documento tiene que quedar dentro de esta carpeta."
+            return await index(request, name, error)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.open("a").close()  # not touch(): it would bump an existing one up the list
+        except OSError as e:  # a folder with that name, no permission...
+            return await index(request, name, f"No se pudo crear: {e.strerror.lower()}.")
         return RedirectResponse("/edit/" + quote(path.relative_to(root).as_posix()), 303)
 
     async def editor(request: Request):

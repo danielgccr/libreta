@@ -14,9 +14,11 @@
   </header>
   <main class="index">
     <form class="new" method="post" action="/new">
-      <input name="name" required placeholder="Nuevo documento: nombre.md" aria-label="Nombre del nuevo documento" autocomplete="off" spellcheck="false">
+      <input name="name" value="{{ name }}" required placeholder="Nuevo documento: nombre.md" aria-label="Nombre del nuevo documento" autocomplete="off" spellcheck="false"
+        {%- if error %} aria-invalid="true" aria-describedby="new-error" autofocus{% endif %}>
       <button>Crear</button>
     </form>
+    {% if error %}<p id="new-error" class="new-error" role="alert">{{ error }}</p>{% endif %}
     {% if files %}
     <ol>
       {% for f in files %}
