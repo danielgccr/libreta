@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="$lang">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,8 +14,8 @@
   </header>
   <main class="index">
     <form class="new" method="post" action="/new">
-      <input name="name" value="$name" placeholder="Nuevo documento: nombre.md" aria-label="Nombre del nuevo documento" autocomplete="off" spellcheck="false"$invalid>
-      <button>Crear</button>
+      <input name="name" value="$name" placeholder="{{Nuevo documento: nombre.md}}" aria-label="{{Nombre del nuevo documento}}" autocomplete="off" spellcheck="false"$invalid>
+      <button>{{Crear}}</button>
     </form>
     $error
     $files

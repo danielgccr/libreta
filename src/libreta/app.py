@@ -5,6 +5,7 @@ import contextlib
 import html
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -42,6 +43,7 @@ from libreta.document import (
     split_front_matter,
     stamp,
 )
+from libreta.i18n import LANG, MESSAGES, tr
 from libreta.worker import Worker, environment
 
 HERE = Path(__file__).parent
@@ -51,9 +53,11 @@ SCRIPT_SAFE = str.maketrans({"<": "\\u003c", ">": "\\u003e", "&": "\\u0026"})
 
 
 def page(template: str, status: int = 200, /, **values: str) -> HTMLResponse:
-    """templates/<template> with its $placeholders filled; the values go in already escaped."""
+    """templates/<template> with its {{texts}} translated and its $placeholders filled; the
+    values go in already escaped."""
     text = (HERE / "templates" / template).read_text(encoding="utf-8")
-    return HTMLResponse(Template(text).substitute(values), status_code=status)
+    text = re.sub(r"\{\{(.+?)\}\}", lambda m: html.escape(tr(m[1])).replace("$", "$$"), text)
+    return HTMLResponse(Template(text).substitute(values, lang=LANG), status_code=status)
 
 
 class TokenMiddleware:
@@ -213,7 +217,7 @@ class Session:
                 # pragmatic, `libreta run` is not); Escape does.
                 if self.interrupted:
                     yield _ndjson({"start": blocks[target].line})
-                    yield _ndjson(to_json("error", "No se ha ejecutado: interrumpido.\n"))
+                    yield _ndjson(to_json("error", tr("No se ha ejecutado: interrumpido.\n")))
                     return
                 block = blocks[i]
                 yield _ndjson({"start": block.line})
@@ -267,7 +271,6 @@ def _ndjson(item: dict) -> str:
 
 
 SKIP = {"node_modules", "__pycache__"}  # besides hidden folders (.git, .venv, .libreta)
-MONTHS = "ene feb mar abr may jun jul ago sep oct nov dic".split()
 
 
 def markdown_files(root: Path) -> list[tuple[str, float]]:
@@ -287,14 +290,15 @@ def markdown_files(root: Path) -> list[tuple[str, float]]:
 
 def when(mtime: float, now: datetime | None = None) -> str:
     """A modification time as the index shows it: "hoy, 20:41", "ayer, 9:05", "21 oct",
-    "3 mar 2025"."""
+    "3 mar 2025" (in English, "today, 20:41"... "21 Oct")."""
     t = datetime.fromtimestamp(mtime)
     now = now or datetime.now()
     if t.date() == now.date():
-        return f"hoy, {t.hour}:{t.minute:02}"
+        return tr("hoy, {time}", time=f"{t.hour}:{t.minute:02}")
     if t.date() == now.date() - timedelta(days=1):
-        return f"ayer, {t.hour}:{t.minute:02}"
-    day = f"{t.day} {MONTHS[t.month - 1]}"
+        return tr("ayer, {time}", time=f"{t.hour}:{t.minute:02}")
+    months = tr("ene feb mar abr may jun jul ago sep oct nov dic").split()
+    day = f"{t.day} {months[t.month - 1]}"
     return day if t.year == now.year else f"{day} {t.year}"
 
 
@@ -338,12 +342,17 @@ def create_app(root: Path, token: str) -> Starlette:
             )
         invalid = ' aria-invalid="true" aria-describedby="new-error" autofocus' if error else ""
         alert = error and f'<p id="new-error" class="new-error" role="alert">{e(error)}</p>'
-        empty = '<p class="empty">No hay ficheros Markdown en esta carpeta.</p>'
+        empty = f'<p class="empty">{e(tr("No hay ficheros Markdown en esta carpeta."))}</p>'
         return page(
             "index.html",
             400 if error else 200,
             root=e(root.name or str(root)),
-            count=f"{len(files)} documento{'' if len(files) == 1 else 's'}",
+            count=e(
+                tr(
+                    "{count} documento" if len(files) == 1 else "{count} documentos",
+                    count=len(files),
+                )
+            ),
             name=e(name),
             invalid=invalid,
             error=alert,
@@ -355,17 +364,18 @@ def create_app(root: Path, token: str) -> Starlette:
         open it. An existing one just opens; a name it cannot take, back to the list."""
         name = parse_qs((await request.body()).decode()).get("name", [""])[0].strip()
         if not name:
-            return await index(request, name, "Escribe un nombre para el documento.")
+            return await index(request, name, tr("Escribe un nombre para el documento."))
         try:
             path = markdown(name if name.endswith(".md") else name + ".md")
         except HTTPException:
-            error = "El documento tiene que quedar dentro de esta carpeta."
+            error = tr("El documento tiene que quedar dentro de esta carpeta.")
             return await index(request, name, error)
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.open("a").close()  # not touch(): it would bump an existing one up the list
         except OSError as e:  # a folder with that name, no permission...
-            return await index(request, name, f"No se pudo crear: {e.strerror.lower()}.")
+            reason = e.strerror.lower()
+            return await index(request, name, tr("No se pudo crear: {reason}.", reason=reason))
         return RedirectResponse("/edit/" + quote(path.relative_to(root).as_posix()), 303)
 
     async def editor(request: Request):
@@ -391,6 +401,7 @@ def create_app(root: Path, token: str) -> Starlette:
             name=html.escape(path.name),
             path=html.escape(path.relative_to(root).as_posix()),
             doc=json.dumps(doc, sort_keys=True).translate(SCRIPT_SAFE),
+            messages=json.dumps(MESSAGES, sort_keys=True).translate(SCRIPT_SAFE),
         )
 
     async def put_doc(request: Request):
@@ -416,7 +427,7 @@ def create_app(root: Path, token: str) -> Starlette:
         else:
             n = next((i for i, b in enumerate(blocks) if b.line == line), None)
             if n is None:
-                return PlainTextResponse("No hay un bloque de Python en esa línea.", 409)
+                return PlainTextResponse(tr("No hay un bloque de Python en esa línea."), 409)
         await using(session)
         lines = session.run(text, parsed, n, inline)
         return StreamingResponse(lines, media_type="application/x-ndjson")

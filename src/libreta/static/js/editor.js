@@ -22,6 +22,7 @@ import {
   textareaOf,
 } from "./blocks.js";
 import { closeAssist, handleAssistInput, handleAssistKey } from "./complete.js";
+import { lang, tr } from "./i18n.js";
 import { handlePythonKey } from "./keys.js";
 import { setModules } from "./py-highlight.js";
 
@@ -43,7 +44,7 @@ for (const b of doc.blocks) {
   main.append(block);
   for (const item of b.output ?? []) appendOutput(block, item); // cached (DESIGN §5)
   if (b.values) block.values = b.values;
-  if (b.stale) setStale(block, `Ha cambiado ${b.stale}`); // its data (DESIGN §5)
+  if (b.stale) setStale(block, tr("Ha cambiado {file}", { file: b.stale })); // its data (DESIGN §5)
 }
 normalize(main);
 // The caret starts in the document, or in the title of a new one; the page stays at its top.
@@ -80,7 +81,7 @@ function showDate(date) {
   const day = new Date(`${date}T00:00`);
   if (!date) dateLine.textContent = "";
   else if (isNaN(day)) dateLine.textContent = date;
-  else dateLine.textContent = day.toLocaleDateString("es", { dateStyle: "long" });
+  else dateLine.textContent = day.toLocaleDateString(lang, { dateStyle: "long" });
 }
 
 titleInput.addEventListener("input", showDirty);
@@ -105,9 +106,9 @@ async function save() {
     savedTitle = title;
     showDate(result.date);
     showDirty();
-    announce("Guardado");
+    announce(tr("Guardado"));
   } catch (error) {
-    alert(`No se ha podido guardar: ${error.message}`);
+    alert(tr("No se ha podido guardar: {error}", { error: error.message }));
   }
 }
 
@@ -125,11 +126,11 @@ function paintNotesNear(block) {
   paintNotesAfter(block);
 }
 
-const ABOVE = "Ha cambiado o se ha vuelto a ejecutar un bloque anterior";
+const ABOVE = tr("Ha cambiado o se ha vuelto a ejecutar un bloque anterior");
 
 // Python blocks from `block` on (or after it) no longer show what their code would produce.
 // Each says why, on hover and to screen readers: `reason` the first, `rest` the others.
-function markStale(block, after = false, reason = "Ha cambiado su código", rest = ABOVE) {
+function markStale(block, after = false, reason = tr("Ha cambiado su código"), rest = ABOVE) {
   let first = !after;
   for (let b = after ? block.nextElementSibling : block; b; b = b.nextElementSibling) {
     if (!isPython(b)) continue;
@@ -192,16 +193,17 @@ async function run(block) {
         if (item.mime === "error") failed.add(current);
       }
     });
-    if (!isPython(block)) announce("Valores actualizados");
+    if (!isPython(block)) announce(tr("Valores actualizados"));
     else {
-      const name = `Bloque ${[...main.querySelectorAll(".block.py")].indexOf(block) + 1}`;
-      if (failed.has(block)) announce(`${name}: error`);
-      else announce(`${name} ejecutado${failed.size ? ", con errores en bloques anteriores" : ""}`);
+      const n = [...main.querySelectorAll(".block.py")].indexOf(block) + 1;
+      if (failed.has(block)) announce(tr("Bloque {n}: error", { n }));
+      else if (failed.size) announce(tr("Bloque {n} ejecutado, con errores en bloques anteriores", { n }));
+      else announce(tr("Bloque {n} ejecutado", { n }));
     }
   } catch (error) {
     if (current) appendOutput(current, { mime: "error", content: `${error.message}\n` });
     else alert(error.message);
-    announce(`No se ha podido ejecutar: ${error.message}`);
+    announce(tr("No se ha podido ejecutar: {error}", { error: error.message }));
   } finally {
     current?.classList.remove("running");
     block.classList.remove("running");
@@ -351,7 +353,7 @@ let moduleList = (doc.modules ?? []).join();
 window.addEventListener("focus", async () => {
   const { text, lines } = locate(main);
   api.stale(text).then((changed) => {
-    const reason = `Ha cambiado ${changed?.file}`;
+    const reason = tr("Ha cambiado {file}", { file: changed?.file });
     for (const [block, at] of lines)
       if (at === changed?.line && isPython(block)) markStale(block, false, reason, reason);
   }, () => {});

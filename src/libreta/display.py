@@ -5,6 +5,8 @@ import base64
 import io
 from collections.abc import Callable
 
+from libreta.i18n import number, tr
+
 REPRS = [
     ("_repr_html_", "text/html"),
     ("_repr_svg_", "image/svg+xml"),
@@ -78,8 +80,8 @@ def keep_tail(text: str) -> str:
     lines = text.split("\n")
     if len(lines) <= 2 * MAX_LINES:
         return text
-    dropped = f"{len(lines) - MAX_LINES:,}".replace(",", ".")
-    return f"… {dropped} líneas anteriores omitidas\n" + "\n".join(lines[-MAX_LINES:])
+    omitted = tr("… {count} líneas anteriores omitidas\n", count=number(len(lines) - MAX_LINES))
+    return omitted + "\n".join(lines[-MAX_LINES:])
 
 
 class Stream(io.TextIOBase):

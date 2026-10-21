@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from libreta.document import front_params, front_value, parse, split_front_matter
+from libreta.i18n import tr
 
 KNOWN = set(dir(builtins)) | {"__file__", "__builtins__"}
 DEFERRED = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
@@ -39,10 +40,10 @@ def purl(text: str, directory: Path) -> tuple[str, list[str]]:
         try:
             tree = ast.parse(block.code)
         except SyntaxError as e:
-            problems.append(f"línea {first + (e.lineno or 1)}: error de sintaxis")
+            problems.append(tr("línea {line}: error de sintaxis", line=first + (e.lineno or 1)))
             continue
         for node in _undefined(tree.body, defined):
-            problems.append(f"línea {first + node.lineno}: «{node.id}» {_why(node.id)}")
+            problems.append(_undefined_name(node.id, first + node.lineno))
         hoisted = set()
         for stmt in _hoistable(tree.body):
             imports[ast.unparse(stmt)] = _sort_key(stmt, directory)
@@ -65,10 +66,10 @@ def purl(text: str, directory: Path) -> tuple[str, list[str]]:
     return "\n\n".join(head + parts) + "\n", []
 
 
-def _why(name: str) -> str:
+def _undefined_name(name: str, line: int) -> str:
     if name == "display":
-        return "solo existe dentro de libreta"
-    return "no está definido en ese punto"
+        return tr("línea {line}: «{name}» solo existe dentro de libreta", line=line, name=name)
+    return tr("línea {line}: «{name}» no está definido en ese punto", line=line, name=name)
 
 
 def _undefined(stmts: list[ast.stmt], defined: set[str]) -> list[ast.Name]:

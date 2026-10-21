@@ -442,6 +442,25 @@ Endpoints:
   parámetros: `-p mes=2026-10 -o informe-2026-10.html`); su extensión `.pdf` vale por
   `--to pdf`.
 
+### 8.1 Idioma
+
+La interfaz (mensajes de la CLI, las páginas, los avisos al lector de pantalla) está en
+español y en inglés. Un solo idioma por proceso, el del entorno, como gettext:
+`LIBRETA_LANG`, si no `LANGUAGE`, `LC_ALL`, `LC_MESSAGES` o `LANG`; español si empieza por
+`es`, inglés en otro caso (`C` y `POSIX` incluidos). Es una herramienta local: quien abre el
+navegador es quien lanzó el servidor, así que no hace falta mirar `Accept-Language`.
+
+- El texto en español es la clave, sin catálogos compilados: `tr("línea {line}: …",
+  line=n)` en Python, el mismo `tr()` en JS (`static/js/i18n.js`). El catálogo es uno,
+  `EN` en `i18n.py`; el editor lo recibe en la página (`<script id="messages">`, vacío en
+  español) y las plantillas marcan su texto como `{{…}}`.
+- Un test exige que cada `tr("…")` y cada `{{…}}` tenga su traducción, y que el catálogo
+  no guarde ninguna huérfana.
+- Fechas y números siguen el idioma (`toLocaleDateString(lang)`; "21 oct" / "21 Oct";
+  12.345 / 12,345). Las unidades del tiempo de los bloques (s, min, h) son las mismas.
+- No se traducen: los tracebacks (son de Python), la documentación (español, salvo el
+  README) ni el documento del usuario.
+
 ## 9. Estilo
 
 Dos capas sobre los mismos tokens:

@@ -29,6 +29,7 @@ from multiprocessing.connection import Connection
 from pathlib import Path
 
 from libreta import display
+from libreta.i18n import tr
 
 # The child's first lines. Whatever the project's Python, libreta's own modules (and jedi,
 # for completion) come from libreta's installation, and nothing else of it leaks in.
@@ -75,7 +76,8 @@ def _supported(python: str) -> bool:
     check = "import sys; sys.exit(sys.version_info < (3, 12))"
     if subprocess.run([python, "-c", check]).returncode == 0:
         return True
-    print(f"libreta: {python} es anterior a Python 3.12; se usa el de libreta", file=sys.stderr)
+    message = tr("libreta: {python} es anterior a Python 3.12; se usa el de libreta", python=python)
+    print(message, file=sys.stderr)
     return False
 
 
@@ -157,7 +159,7 @@ class Worker:
                 message = self.conn.recv()
             except (EOFError, ConnectionResetError):  # the child died (reset: at startup)
                 self.unfinished = False
-                yield "error", "El proceso del worker ha terminado.\n"
+                yield "error", tr("El proceso del worker ha terminado.\n")
                 return
             if message[0] == "done":
                 self.unfinished = False

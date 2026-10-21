@@ -14,6 +14,7 @@ from pathlib import Path
 
 from libreta.cache import Cache, states
 from libreta.document import expressions, parse, substitute
+from libreta.i18n import tr
 
 TEXT = {
     "stdout": "{.output}",
@@ -55,7 +56,8 @@ def knit(path: Path, params: dict | None = None) -> tuple[str, list[str]]:
     def value(expression: str) -> str | None:
         result = (cache.load_values(keys[point]) or {}).get(expression, {})
         if "text" not in result:
-            problems.append(f"`py {expression}`: {result.get('error', 'sin valor en la caché')}")
+            error = result.get("error", tr("sin valor en la caché"))
+            problems.append(f"`py {expression}`: {error}")
         return result.get("text")
 
     for block in parsed:
@@ -69,10 +71,12 @@ def knit(path: Path, params: dict | None = None) -> tuple[str, list[str]]:
         parts = [code]
         items = cache.load(keys[point])
         if items is None:
-            problems.append(f"línea {block.line}: el bloque no tiene salida en la caché")
+            problems.append(
+                tr("línea {line}: el bloque no tiene salida en la caché", line=block.line)
+            )
             items = []
         if any(item["mime"] == "error" for item in items):
-            problems.append(f"línea {block.line}: el bloque falla")
+            problems.append(tr("línea {line}: el bloque falla", line=block.line))
         for mime, content in _merge(items):
             if mime in TEXT:
                 parts.append(_fenced(content, TEXT[mime]))

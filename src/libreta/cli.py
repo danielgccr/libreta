@@ -21,6 +21,7 @@ from libreta.document import (
     scalar,
     split_front_matter,
 )
+from libreta.i18n import tr
 from libreta.knit import complete, knit, remove_figures
 from libreta.purl import purl as to_script
 from libreta.worker import Worker, environment
@@ -73,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command is None or args.path.is_dir():
         serve(args.path if args.command else Path.cwd())
     elif args.path.suffix != ".md":
-        print(f"libreta: {args.path} no es un fichero .md", file=sys.stderr)
+        print(tr("libreta: {path} no es un fichero .md", path=args.path), file=sys.stderr)
         return 2
     else:
         serve(args.path.parent, args.path.name)
@@ -87,9 +88,13 @@ def params(path: Path, overrides: Sequence[str]) -> dict | None:
     for item in overrides:
         key, equals, value = item.partition("=")
         if not equals or key not in result:
-            known = ", ".join(result) or "ninguno"
+            known = ", ".join(result) or tr("ninguno")
             print(
-                f"libreta: -p {item}: el documento no tiene ese parámetro (tiene: {known})",
+                tr(
+                    "libreta: -p {item}: el documento no tiene ese parámetro (tiene: {known})",
+                    item=item,
+                    known=known,
+                ),
                 file=sys.stderr,
             )
             return None
@@ -102,7 +107,7 @@ def run(path: Path, keep_going: bool = False, overrides: Sequence[str] = ()) -> 
     (exit status 1), or with `keep_going` run the rest anyway. `overrides`: KEY=VALUE for
     the document's params."""
     if not path.is_file():
-        print(f"libreta: no existe {path}", file=sys.stderr)
+        print(tr("libreta: no existe {path}", path=path), file=sys.stderr)
         return 2
     if (values := params(path, overrides)) is None:
         return 2
@@ -137,7 +142,10 @@ def run(path: Path, keep_going: bool = False, overrides: Sequence[str] = ()) -> 
             for mime, content in worker.run(block.code, block.line + 1, source):
                 items.append((mime, content))
                 if mime == "elapsed":
-                    print(f"libreta: línea {block.line}: {content}", file=sys.stderr)
+                    print(
+                        tr("libreta: línea {line}: {elapsed}", line=block.line, elapsed=content),
+                        file=sys.stderr,
+                    )
                     continue
                 out = sys.stderr if mime in STDERR else sys.stdout
                 if mime not in STREAMS:
@@ -160,7 +168,7 @@ def purl(path: Path) -> int:
     """Print the document as a Python script (DESIGN §8); or, if it does not run top to
     bottom, why not, with the lines of the .md (exit status 1)."""
     if not path.is_file():
-        print(f"libreta: no existe {path}", file=sys.stderr)
+        print(tr("libreta: no existe {path}", path=path), file=sys.stderr)
         return 2
     script, problems = to_script(path.read_text(encoding="utf-8"), path.parent)
     for problem in problems:
@@ -186,12 +194,14 @@ def export(
     next to the document, with its name)."""
     for file in [path, *css]:
         if not file.is_file():
-            print(f"libreta: no existe {file}", file=sys.stderr)
+            print(tr("libreta: no existe {path}", path=file), file=sys.stderr)
             return 2
     if (values := params(path, overrides)) is None:
         return 2
     if not complete(path, values):
-        print(f"libreta: la caché no está completa; se ejecuta {path}", file=sys.stderr)
+        print(
+            tr("libreta: la caché no está completa; se ejecuta {path}", path=path), file=sys.stderr
+        )
         if run(path, keep_going=True, overrides=overrides) == 130:
             return 130
     markdown, problems = knit(path, values)
@@ -200,7 +210,10 @@ def export(
     knitted = path.with_name(f"{path.stem}.knit.md")
     knitted.write_text(markdown, encoding="utf-8")
     if shutil.which("pandoc") is None:
-        print(f"libreta: sin Pandoc; el Markdown tejido está en {knitted}", file=sys.stderr)
+        print(
+            tr("libreta: sin Pandoc; el Markdown tejido está en {path}", path=knitted),
+            file=sys.stderr,
+        )
         return 1 if problems else 0
     output = output.resolve() if output else path.with_suffix(f".{to}")
     command = ["pandoc", knitted.name, "--from", "commonmark_x", "--output", str(output)]
@@ -241,8 +254,8 @@ def serve(root: Path, document: str | None = None) -> None:
     page = f"edit/{quote(document)}" if document else ""
     url = f"http://127.0.0.1:{sock.getsockname()[1]}/{page}?token={token}"
     python, _ = environment(root)
-    print(f"libreta: {root / (document or '')} en {url}", flush=True)
-    print(f"libreta: Python de {python}", flush=True)
+    print(tr("libreta: {path} en {url}", path=root / (document or ""), url=url), flush=True)
+    print(tr("libreta: Python de {python}", python=python), flush=True)
     webbrowser.open(url)
     server = uvicorn.Server(uvicorn.Config(create_app(root, token), log_level="warning"))
     try:

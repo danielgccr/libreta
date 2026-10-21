@@ -151,6 +151,12 @@ Knits the document from its cache (running it first if anything is missing) and 
 it with Pandoc. Without Pandoc, it leaves `report.knit.md`, Markdown with the outputs
 embedded.
 
+### Language
+
+libreta speaks English and Spanish, following the environment as gettext does
+(`LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`). `LIBRETA_LANG=es` or `LIBRETA_LANG=en`
+overrides it.
+
 ## Development
 
 ```sh

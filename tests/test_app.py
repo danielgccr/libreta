@@ -375,8 +375,8 @@ def test_pages_escape_names_and_text(tmp_path):
     assert b"<i>" not in body and b"&lt;i&gt;.md" in body
     _, _, body = get(cookie="secret", path="/edit/<i>.md", app=doc_app)
     assert (
-        b"<i>" not in body and body.count(b"</script>") == 2
-    )  # editor.js and the JSON: the page's own
+        b"<i>" not in body and body.count(b"</script>") == 3
+    )  # editor.js, the document and the translations: the page's own
     assert b"\\u003c/script\\u003e\\u003c!-- \\u0026 " in body
 
 

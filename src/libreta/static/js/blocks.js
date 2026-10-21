@@ -6,6 +6,7 @@
 // They serialize to nothing until typed into.
 
 import { escapeHtml, highlightPython } from "./py-highlight.js";
+import { lang, tr } from "./i18n.js";
 import { highlightMarkdown } from "./md-highlight.js";
 
 const HEADING = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
@@ -61,7 +62,9 @@ export function normalize(main) {
   if (!prev || isPython(prev)) main.append(virtualBlock());
   // Screen readers tell the code blocks apart by their number.
   const python = main.querySelectorAll(".block.py");
-  python.forEach((b, i) => textareaOf(b).setAttribute("aria-label", `Python, bloque ${i + 1} de ${python.length}`));
+  python.forEach((b, i) =>
+    textareaOf(b).setAttribute("aria-label", tr("Python, bloque {n} de {total}", { n: i + 1, total: python.length })),
+  );
 }
 
 function blockData(main) {
@@ -309,7 +312,8 @@ function appendStream(element, content) {
   const lines = element.textContent.split("\n");
   element.dropped = (element.dropped ?? 0) + lines.length - MAX_LINES - (element.dropped ? 1 : 0);
   element.textContent =
-    `… ${element.dropped.toLocaleString("es")} líneas anteriores omitidas\n` + lines.slice(-MAX_LINES).join("\n");
+    tr("… {count} líneas anteriores omitidas\n", { count: element.dropped.toLocaleString(lang) }) +
+    lines.slice(-MAX_LINES).join("\n");
   element.lines = MAX_LINES + 1;
 }
 

@@ -58,11 +58,12 @@ src/libreta/
   display.py     # protocolo _repr_*_, última expresión, captura de stdout/stderr
   _mpl.py        # backend de matplotlib propio (MPLBACKEND=module://libreta._mpl)
   cache.py       # hashes encadenados, lectura/escritura de salidas
+  i18n.py        # español e inglés: tr() y el catálogo EN
   knit.py        # Markdown "tejido" + llamada opcional a pandoc
   purl.py        # el documento como script de Python (libreta purl)
   templates/
   static/
-    js/          # editor.js, blocks.js, keys.js, py-highlight.js, md-highlight.js, complete.js, api.js
+    js/          # editor.js, blocks.js, keys.js, py-highlight.js, md-highlight.js, complete.js, api.js, i18n.js
     css/         # tokens.css, editor.css, export.css
 tests/
 ejemplos/
@@ -74,6 +75,8 @@ docs/DESIGN.md
 - Pregunta antes de añadir cualquier dependencia, de Python o de JS.
 - Código, identificadores y comentarios en inglés; documentación en español, salvo el
   README, en inglés.
+- Textos de la interfaz en español dentro de `tr()` (Python y JS) o `{{…}}` (plantillas),
+  con su traducción en `EN` de `i18n.py` (DESIGN §8.1); `tests/test_i18n.py` lo vigila.
 - El motor (parser, worker, display, caché, knit) se desarrolla con tests en pytest.
   El parser debe garantizar ida y vuelta exacta: `serialize(parse(texto)) == texto`.
 - El editor no se puede probar desde aquí: al terminar una tarea de frontend, da una lista
