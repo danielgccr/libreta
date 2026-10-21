@@ -248,9 +248,10 @@ def test_changed_data_reruns_from_scratch(tmp_path):
         assert json.loads(post_json(doc_app, "/stale", {"text": text})[2]) is None
         data.write_text("4")
         os.utime(data, ns=(0, 0))  # the same size: only the modification time tells
-        assert json.loads(post_json(doc_app, "/stale", {"text": text})[2]) == 1
+        changed = {"line": 1, "file": "datos.txt"}
+        assert json.loads(post_json(doc_app, "/stale", {"text": text})[2]) == changed
         stale = [b.get("stale") for b in editor_blocks(text, Session(tmp_path / "doc.md").cache)]
-        assert stale == [True, None, True]  # block 2 read nothing, but it used block 1's
+        assert stale == ["datos.txt", None, "datos.txt"]  # block 2 used what block 1 read
         assert run(5) == [{"start": 1}, {"start": 5}, {"mime": "text/plain", "content": "8"}]
         assert json.loads(post_json(doc_app, "/stale", {"text": text})[2]) is None
     finally:

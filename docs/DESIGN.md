@@ -187,7 +187,10 @@ sobre el estado que dejan los anteriores.
   última ejecución (o los datos que leyeron, §5), se reinicia el worker y se ejecuta 1..N.
   Si solo ha cambiado el propio bloque N, se reejecuta sobre el estado actual (impuro,
   como en Jupyter, y aceptado).
-- Los bloques posteriores a uno modificado o reejecutado se marcan como obsoletos.
+- Los bloques posteriores a uno modificado o reejecutado se marcan como obsoletos. Cada
+  uno dice por qué al pasar por encima de su salida (`title`) y al lector de pantalla
+  (`aria-description`): "Ha cambiado su código", "Ha cambiado o se ha vuelto a ejecutar un
+  bloque anterior" o "Ha cambiado padron.csv" (§5).
 
 ### 4.6 Petición de ejecución
 

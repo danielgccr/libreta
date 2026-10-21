@@ -86,22 +86,21 @@ class Cache:
         # Written last: a readable .json means its figures are all there.
         (self.dir / f"{h}.json").write_text(json.dumps(record), encoding="utf-8")
 
-    def stale(self, h: str) -> bool:
-        """Whether a file the namespace had read by the end of the block has changed since."""
+    def stale(self, h: str) -> str | None:
+        """A file the namespace had read by the end of the block that has changed since (its
+        path, relative to the document's folder), or None."""
         try:
             reads = json.loads((self.dir / f"{h}-reads.json").read_text(encoding="utf-8"))
-        except OSError:  # read nothing (or ran before libreta tracked it)
-            return False
-        except ValueError:
-            return True
+        except (OSError, ValueError):  # read nothing (or ran before libreta tracked it)
+            return None
         for rel, seen in reads.items():
             try:
                 st = (self.root / rel).stat()
             except OSError:
-                return True
+                return rel
             if [st.st_mtime_ns, st.st_size] != seen:
-                return True
-        return False
+                return rel
+        return None
 
     def load_values(self, h: str) -> dict | None:
         try:

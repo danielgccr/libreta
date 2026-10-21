@@ -43,7 +43,7 @@ for (const b of doc.blocks) {
   main.append(block);
   for (const item of b.output ?? []) appendOutput(block, item); // cached (DESIGN §5)
   if (b.values) block.values = b.values;
-  if (b.stale) block.classList.add("stale"); // its data changed on disk (DESIGN §5)
+  if (b.stale) setStale(block, `Ha cambiado ${b.stale}`); // its data (DESIGN §5)
 }
 normalize(main);
 // The caret starts in the document, or in the title of a new one; the page stays at its top.
@@ -125,10 +125,29 @@ function paintNotesNear(block) {
   paintNotesAfter(block);
 }
 
+const ABOVE = "Ha cambiado o se ha vuelto a ejecutar un bloque anterior";
+
 // Python blocks from `block` on (or after it) no longer show what their code would produce.
-function markStale(block, after = false) {
-  for (let b = after ? block.nextElementSibling : block; b; b = b.nextElementSibling)
-    if (isPython(b)) b.classList.add("stale");
+// Each says why, on hover and to screen readers: `reason` the first, `rest` the others.
+function markStale(block, after = false, reason = "Ha cambiado su código", rest = ABOVE) {
+  let first = !after;
+  for (let b = after ? block.nextElementSibling : block; b; b = b.nextElementSibling) {
+    if (!isPython(b)) continue;
+    setStale(b, first ? reason : rest);
+    first = false;
+  }
+}
+
+function setStale(block, reason) {
+  block.classList.add("stale");
+  block.querySelector(".output").title = reason;
+  textareaOf(block).setAttribute("aria-description", reason);
+}
+
+function clearStale(block) {
+  block.classList.remove("stale");
+  block.querySelector(".output").removeAttribute("title");
+  textareaOf(block).removeAttribute("aria-description");
 }
 
 // Backspace or Delete on an empty Python block: it goes and the Markdown around it joins.
@@ -165,7 +184,7 @@ async function run(block) {
         current = python.get(item.start); // undefined only if client and server disagree
         if (!current) return;
         markStale(current, true);
-        current.classList.remove("stale");
+        clearStale(current);
         current.classList.add("running");
         clearOutput(current);
       } else if (current) {
@@ -331,8 +350,10 @@ document.addEventListener("keydown", (event) => {
 let moduleList = (doc.modules ?? []).join();
 window.addEventListener("focus", async () => {
   const { text, lines } = locate(main);
-  api.stale(text).then((line) => {
-    for (const [block, at] of lines) if (at === line && isPython(block)) markStale(block);
+  api.stale(text).then((changed) => {
+    const reason = `Ha cambiado ${changed?.file}`;
+    for (const [block, at] of lines)
+      if (at === changed?.line && isPython(block)) markStale(block, false, reason, reason);
   }, () => {});
   const names = await api.modules().catch(() => null);
   if (!names || names.join() === moduleList) return;

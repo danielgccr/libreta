@@ -39,7 +39,8 @@ export async function run(text, line, inline, onItem) {
 export const interrupt = () => request("/interrupt");
 export const modules = async () => (await request("/modules", { method: "GET" })).json();
 export const restart = () => request("/restart");
-// The line of the first Python block whose data changed on disk since it ran, or null.
+// {line, file}: the first Python block whose data changed on disk since it ran, and the
+// file; or null.
 export async function stale(text) {
   const response = await request("/stale", {
     headers: { "Content-Type": "application/json" },

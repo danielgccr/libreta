@@ -59,9 +59,9 @@ def test_stale_when_a_file_read_changes(tmp_path):
     cache.save(h2, [])
     assert not cache.stale(h1) and not cache.stale(h2)  # h2 read nothing
     data.write_text("a\n1\n2\n")
-    assert cache.stale(h1)
+    assert cache.stale(h1) == "datos.csv"
     data.unlink()
-    assert cache.stale(h1)
+    assert cache.stale(h1) == "datos.csv"
     cache.prune({h2})
     assert not (cache.dir / f"{h1}-reads.json").exists()
 

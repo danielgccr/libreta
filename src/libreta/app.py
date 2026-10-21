@@ -93,12 +93,12 @@ def editor_blocks(text: str, cache: Cache | None = None, params: dict | None = N
     """What each editor block shows. A block's last line ending is implied, not shown:
     the client adds it back when serializing (see serialize() in blocks.js).
     With a cache, Python blocks also carry their cached output, the values of the Markdown
-    after them (None if there are none) and whether the data they read has changed since
-    (and with it, every block after them)."""
+    after them (None if there are none) and, if the data they read has changed since (and
+    with it, every block after them), the file that changed."""
     parsed = parse(text)
     hashes = iter(chain((b.code for b in parsed if b.kind == "python"), params))
     blocks = []
-    stale = False
+    stale = None
     for block in parsed:
         if block.kind == "markdown":
             blocks.append({"kind": "markdown", "value": _chop(block.text)})
@@ -434,15 +434,16 @@ def create_app(root: Path, token: str) -> Starlette:
         return JSONResponse(await run_in_threadpool(session.assist, kind, *point, params))
 
     async def stale_line(request: Request):
-        """{text} -> the line of the first Python block whose data changed on disk, or null:
-        the editor fades it and the ones after it (asked when the window gets focus back)."""
+        """{text} -> {line, file}: the first Python block whose data changed on disk and the
+        file that did, or null. The editor fades it and the ones after it (asked when the
+        window gets focus back)."""
         _, session = document(request)
         text = (await request.json())["text"]
         blocks = [b for b in parse(text) if b.kind == "python"]
         params = front_params(split_front_matter(text)[0])
         for block, h in zip(blocks, chain((b.code for b in blocks), params), strict=True):
-            if session.cache.stale(h):
-                return JSONResponse(block.line)
+            if file := session.cache.stale(h):
+                return JSONResponse({"line": block.line, "file": file})
         return JSONResponse(None)
 
     async def get_modules(request: Request):
