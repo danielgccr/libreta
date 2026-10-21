@@ -1,5 +1,6 @@
-/* Shared by editor.css and export.css. Dark palette (and color-scheme) arrive in M7. */
+/* Shared by editor.css and export.css: light palette, then the dark one. */
 :root {
+  color-scheme: light dark; /* native controls and scrollbars follow the palette */
   --bg: #fcfcfc;
   --text: #444;
   --text-muted: #666;
@@ -26,4 +27,29 @@
   --font-code: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
   --measure: 68ch;
   --font-base: clamp(1rem, 0.95rem + 0.35vi, 1.25rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1e;
+    --text: #c9c9c9;
+    --text-muted: #8c8c8c;
+    --border: #333;
+    --code-bg: rgba(255, 255, 255, 0.07);
+    --accent: #7fa9d6;
+    --text-strong: #ececec;
+    --selection: rgba(127, 169, 214, 0.28);
+    --error: #e08a8a;
+    --rule: rgba(255, 255, 255, 0.12);
+
+    --hl-keyword: #c79be3;
+    --hl-builtin: #7fa9d6;
+    --hl-def: #9cc6ee;
+    --hl-string: #9fc98d;
+    --hl-number: #e3a46f;
+    --hl-comment: #7b7b7b;
+    --hl-decorator: #d8b65c;
+    --hl-py-inline: #6fc7c7;
+    --hl-math: #e391c6;
+  }
 }

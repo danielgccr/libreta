@@ -84,6 +84,11 @@ img.out {
   max-width: 100%; /* figures fill the block at most, never more */
   height: auto;
 }
+@media (prefers-color-scheme: dark) {
+  img.out.image-svg-xml {
+    filter: invert(1) hue-rotate(180deg); /* matplotlib draws black on transparent */
+  }
+}
 .out.text-html {
   overflow-x: auto;
 }
