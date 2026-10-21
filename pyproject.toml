@@ -1,7 +1,7 @@
 [project]
 name = "libreta"
 version = "0.1.0"
-description = "Cuaderno de Python minimalista centrado en la prosa"
+description = "A minimal, prose-first Python notebook"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]

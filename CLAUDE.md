@@ -70,7 +70,8 @@ docs/DESIGN.md
 ## Reglas de trabajo
 
 - Pregunta antes de añadir cualquier dependencia, de Python o de JS.
-- Código, identificadores y comentarios en inglés; documentación en español.
+- Código, identificadores y comentarios en inglés; documentación en español, salvo el
+  README, en inglés.
 - El motor (parser, worker, display, caché, knit) se desarrolla con tests en pytest.
   El parser debe garantizar ida y vuelta exacta: `serialize(parse(texto)) == texto`.
 - El editor no se puede probar desde aquí: al terminar una tarea de frontend, da una lista

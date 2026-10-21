@@ -1,124 +1,123 @@
 # libreta
 
-Un cuaderno de Python centrado en la prosa. Es una hoja en blanco en la que se escribe
-Markdown y, cuando hace falta, se mete un bloque de Python que se ejecuta y muestra su
-salida en el sitio: texto, tablas, figuras de matplotlib, errores.
+A prose-first Python notebook. You get a blank page where you write Markdown and, when
+you need it, drop in a Python block that runs and shows its output right there: text,
+tables, matplotlib figures, errors.
 
-Viene de RMarkdown y knitr, no de Jupyter: sirve para escribir un documento en el que los
-números salen del código, no para explorar. El fichero es Markdown estándar, así que
-GitHub, Obsidian y Pandoc lo leen sin saber que libreta existe, y git lo compara línea a
-línea.
+Its lineage is RMarkdown and knitr, not Jupyter: it is for writing a document whose numbers
+come from code, not for exploring. The file is plain Markdown, so GitHub, Obsidian and
+Pandoc read it without knowing libreta exists, and git diffs it line by line.
 
 ````markdown
-# Edad media de la muestra
+# Mean age of the sample
 
 ```python
 import pandas as pd
-df = pd.read_csv("padron.csv")
+df = pd.read_csv("census.csv")
 df.head()
 ```
 
-La edad media es `py round(df.edad.mean(), 1)` años.
+The mean age is `py round(df.age.mean(), 1)` years.
 ````
 
-## Instalación
+The interface and its messages are in Spanish.
 
-Hace falta Python 3.12 o posterior, en Linux o macOS.
+## Installation
+
+Requires Python 3.12 or later, on Linux or macOS.
 
 ```sh
 uv tool install libreta
 ```
 
-o con pip, `pip install libreta`.
+or with pip, `pip install libreta`.
 
-Opcionales:
+Optional:
 
-- [Pandoc](https://pandoc.org), para exportar a HTML o PDF.
-- WeasyPrint o typst, para el PDF.
-- matplotlib, pandas, etc. no van incluidos: se usan los que tenga instalados el entorno
-  del documento.
+- [Pandoc](https://pandoc.org), to export to HTML or PDF.
+- WeasyPrint or typst, for PDF.
+- matplotlib, pandas and the like are not bundled: libreta uses whatever the document's
+  environment has installed.
 
-## Uso
+## Usage
 
 ```sh
-libreta                     # lista los .md de la carpeta actual en el navegador
-libreta edit informe.md     # abre un documento (si no existe, se crea al guardar)
-libreta edit carpeta/       # lista los .md de otra carpeta
-libreta run informe.md      # lo ejecuta de arriba abajo, sin navegador
-libreta export informe.md   # informe.html (con --to pdf, informe.pdf)
+libreta                     # list the .md files in the current folder, in the browser
+libreta edit report.md      # open a document (if it does not exist, saving creates it)
+libreta edit folder/        # list the .md files in another folder
+libreta run report.md       # run it top to bottom, no browser
+libreta export report.md    # report.html (with --to pdf, report.pdf)
 ```
 
-El servidor escucha solo en `127.0.0.1` y exige un token aleatorio en la URL, porque
-ejecuta código arbitrario. Se detiene con Ctrl+C en la terminal.
+The server listens only on `127.0.0.1` and requires a random token in the URL, since it
+runs arbitrary code. Stop it with Ctrl+C in the terminal.
 
-### El entorno de Python
+### The Python environment
 
-El código del documento se ejecuta con el Python de su proyecto, sin configurar nada: el
-`.venv` más cercano subiendo desde la carpeta del documento; si no hay, el entorno
-activado (`VIRTUAL_ENV`); si no, el de libreta. Para usar pandas en un documento basta con
-tenerlo en el `.venv` de ese proyecto (`uv add pandas`). libreta indica qué Python usa al
-arrancar.
+A document's code runs with its project's Python, with nothing to configure: the nearest
+`.venv` going up from the document's folder; failing that, the activated environment
+(`VIRTUAL_ENV`); failing that, libreta's own. To use pandas in a document, have it in that
+project's `.venv` (`uv add pandas`). libreta prints which Python it uses on startup.
 
-### Escribir
+### Writing
 
-Todo es Markdown en crudo: no hay modo edición y modo render. Un bloque de Python es un
-fence ` ```python ` de primer nivel; cualquier otro fence es texto y no se ejecuta.
+Everything is raw Markdown: there is no edit mode and render mode. A Python block is a
+top-level ` ```python ` fence; any other fence is text and does not run.
 
-| Atajo | Efecto |
+| Shortcut | Effect |
 |---|---|
-| Ctrl+Alt+I | Inserta un bloque de Python (parte el párrafo por el cursor) |
-| Ctrl+Enter | Ejecuta el bloque y pasa al texto siguiente; en Markdown, evalúa sus `` `py …` `` |
-| Escape | Interrumpe la ejecución en curso |
-| Ctrl+Shift+F10 | Reinicia Python con el namespace vacío |
-| Ctrl+Espacio | Autocompletado (también salta solo al escribir) |
-| Ctrl+Alt+F | Inserta una nota al pie `[^n]` con su definición |
-| Ctrl+/ | Comenta o descomenta líneas de Python |
-| Ctrl+A / Ctrl+C | Selecciona y copia el documento entero como Markdown |
-| Ctrl+S | Guarda |
+| Ctrl+Alt+I | Insert a Python block (splits the paragraph at the cursor) |
+| Ctrl+Enter | Run the block and move to the text below; in Markdown, evaluate its `` `py …` `` |
+| Escape | Interrupt the running block |
+| Ctrl+Shift+F10 | Restart Python with an empty namespace |
+| Ctrl+Space | Autocomplete (it also pops up as you type) |
+| Ctrl+Alt+F | Insert a footnote `[^n]` with its definition |
+| Ctrl+/ | Comment or uncomment Python lines |
+| Ctrl+A / Ctrl+C | Select and copy the whole document as Markdown |
+| Ctrl+S | Save |
 
-El título y la fecha van en el front matter YAML (`title`, `date`) y se editan encima del
-documento; la fecha se pone sola al guardar.
+The title and date live in the YAML front matter (`title`, `date`) and are edited above
+the document; the date is set on save.
 
-### Ejecutar
+### Running
 
-- El documento se ejecuta de arriba abajo, como en knitr: si se ejecuta el bloque 5 y ha
-  cambiado el 2, libreta reinicia Python y ejecuta del 1 al 5. Si solo ha cambiado el 5,
-  lo reejecuta sobre el estado actual. Los bloques posteriores quedan marcados como
-  obsoletos.
-- La última expresión de un bloque se muestra (salvo si acaba en `;`). Cualquier objeto
-  con `_repr_html_`, `_repr_png_`, `_repr_svg_`… se ve bien: DataFrames de pandas y
-  polars, sympy, Altair. `display(obj)` muestra en mitad del bloque.
-- Las figuras de matplotlib aparecen solas, sin `plt.show()`.
-- `await` funciona en el nivel superior.
-- `` `py expr` `` dentro del texto es una expresión que se evalúa; su valor aparece en el
-  margen derecho y, al exportar, sustituye a la expresión.
+- The document runs top to bottom, as in knitr: if you run block 5 and block 2 has
+  changed, libreta restarts Python and runs 1 to 5. If only block 5 changed, it reruns it
+  on the current state. Later blocks are marked as stale.
+- A block's last expression is displayed (unless it ends in `;`). Any object with
+  `_repr_html_`, `_repr_png_`, `_repr_svg_`… displays properly: pandas and polars
+  DataFrames, sympy, Altair. `display(obj)` shows something mid-block.
+- matplotlib figures appear on their own, no `plt.show()` needed.
+- Top-level `await` works.
+- `` `py expr` `` inside the text is an expression that gets evaluated; its value shows in
+  the right margin and, on export, replaces the expression.
 
-### Caché
+### Cache
 
-Las salidas no se guardan en el `.md`: viven en `.libreta/<documento>/`, junto al
-documento, indexadas por un hash encadenado de los bloques. Al abrir un documento se ven
-las salidas de la última ejecución sin ejecutar nada; cambiar un bloque invalida ese y
-los siguientes. Es una carpeta desechable: se puede añadir a `.gitignore` o versionar.
+Outputs are not stored in the `.md`: they live in `.libreta/<document>/` next to the
+document, keyed by a chained hash of the blocks. Opening a document shows the outputs of
+its last run without running anything; changing a block invalidates it and the ones after.
+The folder is disposable: add it to `.gitignore` or commit it.
 
 ### `libreta run`
 
-Ejecuta el documento en un proceso nuevo, actualiza la caché e informa de los errores con
-la línea del `.md`. Sale con código distinto de cero si falla algún bloque, así que sirve
-en cron o en CI.
+Runs the document in a fresh process, updates the cache and reports errors with their line
+in the `.md`. It exits non-zero if any block fails, so it works in cron or CI.
 
 ### `libreta export`
 
 ```sh
-libreta export informe.md                 # informe.html, autocontenido
-libreta export informe.md --to pdf        # informe.pdf
-libreta export informe.md --css mio.css   # retoques de estilo encima del de libreta
-libreta export informe.md --keep-md       # conserva el Markdown intermedio
+libreta export report.md                  # report.html, self-contained
+libreta export report.md --to pdf         # report.pdf
+libreta export report.md --css mine.css   # style tweaks on top of libreta's
+libreta export report.md --keep-md        # keep the intermediate Markdown
 ```
 
-Teje el documento con su caché (si falta algo, lo ejecuta antes) y lo convierte con
-Pandoc. Sin Pandoc, deja `informe.knit.md`, Markdown con las salidas incrustadas.
+Knits the document from its cache (running it first if anything is missing) and converts
+it with Pandoc. Without Pandoc, it leaves `report.knit.md`, Markdown with the outputs
+embedded.
 
-## Desarrollo
+## Development
 
 ```sh
 uv sync
@@ -127,10 +126,11 @@ uv run pytest
 uv run ruff check . && uv run ruff format .
 ```
 
-El backend es Starlette, uvicorn, Jinja2 y jedi. El editor es JavaScript sin
-dependencias ni paso de build: textareas con un overlay resaltado por un tokenizador
-propio. El diseño completo, con sus razones, está en [docs/DESIGN.md](docs/DESIGN.md).
+The backend is Starlette, uvicorn, Jinja2 and jedi. The editor is dependency-free
+JavaScript with no build step: textareas over a highlighted overlay, with hand-written
+tokenizers. The full design and its reasoning are in [docs/DESIGN.md](docs/DESIGN.md)
+(in Spanish).
 
-## Licencia
+## License
 
-[GNU GPL v3](LICENSE) o posterior.
+[GNU GPL v3](LICENSE) or later.
