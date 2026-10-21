@@ -173,8 +173,9 @@ sobre el estado que dejan los anteriores.
 - `libreta run` es la reproducción canónica: proceso nuevo, de arriba abajo, siempre.
 - El editor es pragmático: el worker recuerda hasta qué hash encadenado (§5) refleja su
   estado. Si se pide ejecutar el bloque N y algún bloque anterior ha cambiado desde la
-  última ejecución, se reinicia el worker y se ejecuta 1..N. Si solo ha cambiado el propio
-  bloque N, se reejecuta sobre el estado actual (impuro, como en Jupyter, y aceptado).
+  última ejecución (o los datos que leyeron, §5), se reinicia el worker y se ejecuta 1..N.
+  Si solo ha cambiado el propio bloque N, se reejecuta sobre el estado actual (impuro,
+  como en Jupyter, y aceptado).
 - Los bloques posteriores a uno modificado o reejecutado se marcan como obsoletos.
 
 ### 4.6 Petición de ejecución
@@ -203,6 +204,18 @@ Así no hace falta sincronizar ids de bloque entre cliente y servidor.
 
 - Clave de cada bloque: hash encadenado `h_i = sha256(h_{i-1} + código_i)`. Cambiar un
   bloque invalida ese y todos los posteriores.
+- El código no es lo único de lo que depende un bloque: también de los datos. Cada entrada
+  guarda (`<hash>-reads.json`) los ficheros de la carpeta del documento que el namespace
+  había leído al acabar el bloque, con su mtime y tamaño. Si alguno cambia en disco, la
+  entrada está obsoleta aunque su hash siga en la cadena: el editor la atenúa (al abrir y
+  al volver a la ventana, `POST .../stale`), ejecutar un bloque posterior reinicia el
+  worker como si hubiera cambiado el código (§4.5) y `export` vuelve a ejecutar.
+  Qué cuenta como leído: lo que se abre desde Python (audit hook del evento `open`: `open()`,
+  pandas, `csv`, módulos locales) y los literales del código que nombran un fichero
+  existente (lo que abren desde C pyarrow, polars o duckdb). Se ignoran las carpetas
+  ocultas, `site-packages`, `node_modules` y el propio documento. Un fichero que escribe el
+  bloque cuenta como queda tras escribirlo. Límite: una ruta construida en el código y
+  abierta desde C no se ve.
 - Contenido: la lista ordenada de salidas del bloque, los valores de las expresiones `py`
   inline del Markdown que lo sigue, y las figuras como ficheros aparte.
 - Ubicación: un directorio oculto junto al documento, `.libreta/<nombre-del-doc>/`:
@@ -377,6 +390,8 @@ Endpoints:
   `inline: true`, `line` es la de un bloque de Markdown y se evalúan sus expresiones.
   Una sola petición: ni id de ejecución ni `EventSource`.
 - `POST /interrupt`, `POST /restart`.
+- `POST /stale` `{text}`: la línea del primer bloque cuyos datos han cambiado en disco, o
+  `null` (§5).
 - `POST /complete`, `POST /signature` `{text, line, column}` (cursor en el documento):
   `[{name, complete, type}]` (`complete` es lo que se inserta en el cursor) y
   `[{name, params, index}]`.

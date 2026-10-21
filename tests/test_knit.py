@@ -1,3 +1,4 @@
+import os
 import shutil
 
 import pytest
@@ -70,3 +71,13 @@ def test_export_html(tmp_path, capsys):
     assert (tmp_path / "doc.knit.md").exists() and (
         tmp_path / "doc_files" / "figura-1.svg"
     ).exists()
+
+
+def test_changed_data_makes_the_cache_incomplete(tmp_path):
+    path = tmp_path / "doc.md"
+    data = tmp_path / "datos.txt"
+    data.write_text("1")
+    path.write_text("```python\nopen('datos.txt').read()\n```\n")
+    assert run(path) == 0 and complete(path)
+    os.utime(data, ns=(0, 0))
+    assert not complete(path)  # export runs the document again

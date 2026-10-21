@@ -203,3 +203,24 @@ def test_interrupt_await(worker):
     [(_, before)] = run(worker, "ticks")
     run(worker, "await asyncio.sleep(0.05)")  # the loop runs again: the old task must not
     assert run(worker, "ticks") == [("text/plain", before)]
+
+
+def test_reads_data_files_under_the_folder(tmp_path):
+    (tmp_path / "datos.csv").write_text("a\n1\n")
+    (tmp_path / "tabla.parquet").write_bytes(b"PAR1")
+    (tmp_path / ".oculto").mkdir()
+    (tmp_path / ".oculto" / "x.txt").write_text("x")
+    w = Worker(tmp_path / "doc.md")
+    try:
+        assert w.reads == {}
+        run(w, "texto = open('datos.csv').read()\nopen('.oculto/x.txt').read()")
+        assert list(w.reads) == ["datos.csv"]  # hidden folders (.venv, .libreta) do not count
+        # Opened from C (pyarrow, polars): only its name in the code gives it away.
+        run(w, "ruta = 'tabla.parquet'\nno_existe = 'otra.parquet'")
+        assert sorted(w.reads) == ["datos.csv", "tabla.parquet"]
+        st = (tmp_path / "datos.csv").stat()
+        assert w.reads["datos.csv"] == [st.st_mtime_ns, st.st_size]
+        run(w, "open('salida.txt', 'w').write('hola')")  # written: as it is afterwards
+        assert w.reads["salida.txt"][1] == 4
+    finally:
+        w.close()

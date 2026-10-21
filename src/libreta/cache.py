@@ -5,6 +5,10 @@ Each block's outputs are ``<hash>.json`` in ``.libreta/<document name>/`` next t
 document; figures go to files of their own, ``<hash>-<n>.<ext>``, for the export to link.
 The values of the inline `py` expressions in the Markdown after the block are
 ``<hash>-values.json``; those before the first block go under GENESIS.
+
+The code is not all a block depends on: ``<hash>-reads.json`` holds the files the namespace
+had read by the end of the block, with their modification time and size. If one of them
+changes on disk, the entry is stale although its hash is still in the chain.
 """
 
 import base64
@@ -40,7 +44,8 @@ def to_json(mime: str, content: str | bytes) -> dict:
 
 class Cache:
     def __init__(self, document: Path):
-        self.dir = document.parent / ".libreta" / document.name
+        self.root = document.parent
+        self.dir = self.root / ".libreta" / document.name
 
     def load(self, h: str) -> list[dict] | None:
         """The block's outputs as client items, or None if there is no valid entry."""
@@ -54,10 +59,12 @@ class Cache:
         except (OSError, ValueError):  # missing, or half written when a run was killed
             return None
 
-    def save(self, h: str, items: list[tuple[str, str | bytes]]) -> None:
+    def save(self, h: str, items: list[tuple[str, str | bytes]], reads: dict | None = None) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
         for old in self.dir.glob(f"{h}*"):
             old.unlink()
+        if reads:
+            (self.dir / f"{h}-reads.json").write_text(json.dumps(reads), encoding="utf-8")
         record = []
         for n, (mime, content) in enumerate(_merged(items)):
             if mime.startswith("image/"):
@@ -69,6 +76,23 @@ class Cache:
                 record.append(to_json(mime, content))
         # Written last: a readable .json means its figures are all there.
         (self.dir / f"{h}.json").write_text(json.dumps(record), encoding="utf-8")
+
+    def stale(self, h: str) -> bool:
+        """Whether a file the namespace had read by the end of the block has changed since."""
+        try:
+            reads = json.loads((self.dir / f"{h}-reads.json").read_text(encoding="utf-8"))
+        except OSError:  # read nothing (or ran before libreta tracked it)
+            return False
+        except ValueError:
+            return True
+        for rel, seen in reads.items():
+            try:
+                st = (self.root / rel).stat()
+            except OSError:
+                return True
+            if [st.st_mtime_ns, st.st_size] != seen:
+                return True
+        return False
 
     def load_values(self, h: str) -> dict | None:
         try:

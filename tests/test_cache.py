@@ -47,3 +47,20 @@ def test_progress_bars_are_saved_collapsed(tmp_path):
         {"mime": "stderr", "content": "100%\n"},
         {"mime": "stdout", "content": "c"},
     ]
+
+
+def test_stale_when_a_file_read_changes(tmp_path):
+    data = tmp_path / "datos.csv"
+    data.write_text("a\n1\n")
+    cache = Cache(tmp_path / "doc.md")
+    h1, h2 = chain(["a", "b"])
+    st = data.stat()
+    cache.save(h1, [], {"datos.csv": [st.st_mtime_ns, st.st_size]})
+    cache.save(h2, [])
+    assert not cache.stale(h1) and not cache.stale(h2)  # h2 read nothing
+    data.write_text("a\n1\n2\n")
+    assert cache.stale(h1)
+    data.unlink()
+    assert cache.stale(h1)
+    cache.prune({h2})
+    assert not (cache.dir / f"{h1}-reads.json").exists()

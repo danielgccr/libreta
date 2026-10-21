@@ -17,6 +17,7 @@ import os
 import re
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import threading
@@ -92,6 +93,8 @@ class Worker:
             )
         self.conn = Connection(parent.detach())
         self.unfinished = False  # a run whose output was not read to the end
+        # The files the namespace depends on, as of the last run: {path: [mtime_ns, size]}.
+        self.reads: dict[str, list[int]] = {}
 
     def alive(self) -> bool:
         return self.process.poll() is None
@@ -137,6 +140,9 @@ class Worker:
             if message[0] == "done":
                 self.unfinished = False
                 return
+            if message[1] == "reads":
+                self.reads = message[2]
+                continue
             yield message[1], message[2]
 
     def interrupt(self) -> None:
@@ -159,6 +165,9 @@ _lock = threading.Lock()
 _running = False
 _sending = False
 _pending = False
+_touched: set[str] = set()  # absolute paths the running code opened or named
+_inputs: dict[str, list[int]] = {}  # every file the namespace depends on (Worker.reads)
+SKIP = {"__pycache__", "site-packages", "node_modules"}  # besides hidden folders
 
 
 def emit(mime: str, content: str | bytes) -> None:
@@ -199,10 +208,50 @@ def _on_sigint(signum, frame):
         raise KeyboardInterrupt  # inside a task's step, asyncio lets it through cleanly
 
 
+def _audit(event: str, args: tuple) -> None:
+    if event == "open" and _running and isinstance(args[0], (str, bytes, os.PathLike)):
+        _touched.add(os.path.abspath(os.fsdecode(args[0])))
+
+
+def _reads(directory: str, filename: str) -> dict[str, list[int]]:
+    """The data files under the document's folder the code has touched so far, with their
+    modification time and size once it is done with them: the cache compares them with the
+    disk (DESIGN §5). A file a block writes counts too, as it is after the write."""
+    for path in _touched:
+        rel = os.path.relpath(path, directory)
+        parts = Path(rel).parts
+        if parts[0] == ".." or any(p.startswith(".") or p in SKIP for p in parts):
+            continue
+        try:
+            st = os.stat(path)
+        except OSError:
+            continue
+        if stat.S_ISREG(st.st_mode) and rel != os.path.basename(filename):
+            _inputs[Path(rel).as_posix()] = [st.st_mtime_ns, st.st_size]
+    _touched.clear()
+    return dict(_inputs)
+
+
+def _literals(source: str, directory: str) -> list[str]:
+    """Strings in the code that may be paths: what pyarrow, polars or duckdb open from C,
+    where the audit hook does not see it (they count if such a file exists)."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    return [
+        os.path.join(directory, node.value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        if 0 < len(node.value) < 256 and "\n" not in node.value and "\0" not in node.value
+    ]
+
+
 def _main(conn, filename: str) -> None:
     global _conn, _running
     _conn = conn
     signal.signal(signal.SIGINT, _on_sigint)
+    sys.addaudithook(_audit)  # what blocks read: open() from Python, pandas included
     os.environ["MPLBACKEND"] = "module://libreta._mpl"
     # Like knitr: relative paths and local imports resolve next to the document.
     directory = os.path.dirname(os.path.abspath(filename))
@@ -225,9 +274,12 @@ def _main(conn, filename: str) -> None:
         try:
             if kind == "run":
                 _execute(namespace, *args, filename)
+                _touched.update(_literals(args[0], directory))
+                _send(("output", "reads", _reads(directory, filename)))
             elif kind == "inline":
                 values = {e: _evaluate(namespace, e, filename) for e in args[0]}
                 _send(("output", "values", values))
+                _send(("output", "reads", _reads(directory, filename)))
             else:
                 _send(("output", "assist", _assist(kind, namespace, *args)))
         except KeyboardInterrupt:  # landed between the user's code and our bookkeeping

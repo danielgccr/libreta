@@ -24,11 +24,12 @@ TEXT = {
 
 
 def complete(path: Path) -> bool:
-    """Whether the cache holds every output and inline value of the document."""
+    """Whether the cache holds every output and inline value of the document, from the
+    data on disk."""
     parsed = parse(path.read_text(encoding="utf-8"))
     keys = [GENESIS, *chain(b.code for b in parsed if b.kind == "python")]
     cache = Cache(path)
-    blocks = all(cache.load(k) is not None for k in keys[1:])
+    blocks = all(cache.load(k) is not None and not cache.stale(k) for k in keys[1:])
     values = all(
         cache.load_values(k) is not None
         for k, e in zip(keys, expressions(parsed), strict=True)

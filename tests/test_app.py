@@ -231,6 +231,32 @@ def test_run_follows_the_chain(tmp_path):
         post_json(doc_app, "/restart", {})
 
 
+def test_changed_data_reruns_from_scratch(tmp_path):
+    """DESIGN §5: the data a block read changed on disk -> its output is stale, and running
+    a later block starts again from the first one, as if its code had changed."""
+    doc_app = create_app(tmp_path, "secret")
+    data = tmp_path / "datos.txt"
+    data.write_text("1")
+    text = "```python\nn = int(open('datos.txt').read())\n```\n\n```python\nn * 2\n```\n"
+
+    def run(line):
+        return items(post_json(doc_app, "/run", {"text": text, "line": line})[2])
+
+    try:
+        assert run(5) == [{"start": 1}, {"start": 5}, {"mime": "text/plain", "content": "2"}]
+        assert run(5) == [{"start": 5}, {"mime": "text/plain", "content": "2"}]
+        assert json.loads(post_json(doc_app, "/stale", {"text": text})[2]) is None
+        data.write_text("4")
+        os.utime(data, ns=(0, 0))  # the same size: only the modification time tells
+        assert json.loads(post_json(doc_app, "/stale", {"text": text})[2]) == 1
+        stale = [b.get("stale") for b in editor_blocks(text, Session(tmp_path / "doc.md").cache)]
+        assert stale == [True, None, True]  # block 2 read nothing, but it used block 1's
+        assert run(5) == [{"start": 1}, {"start": 5}, {"mime": "text/plain", "content": "8"}]
+        assert json.loads(post_json(doc_app, "/stale", {"text": text})[2]) is None
+    finally:
+        post_json(doc_app, "/restart", {})
+
+
 def test_escape_stops_the_replay(tmp_path):
     session = Session(tmp_path / "doc.md")
     text = "```python\nimport time\nprint('ready')\nwhile True:\n    time.sleep(0.01)\n```\n"

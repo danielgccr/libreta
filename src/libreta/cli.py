@@ -94,7 +94,7 @@ def run(path: Path, keep_going: bool = False) -> int:
                     content = (content if mime in VALUES else f"[{mime}]") + "\n"
                 out.write(content)
                 out.flush()  # keep stdout and stderr interleaved when redirected
-            cache.save(h, items)
+            cache.save(h, items, worker.reads)
             if any(mime == "error" for mime, _ in items) or not evaluate(i + 1):
                 status = 1
                 if not keep_going:

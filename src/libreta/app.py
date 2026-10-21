@@ -91,11 +91,13 @@ class RevalidatedStaticFiles(StaticFiles):
 def editor_blocks(text: str, cache: Cache | None = None) -> list[dict]:
     """What each editor block shows. A block's last line ending is implied, not shown:
     the client adds it back when serializing (see serialize() in blocks.js).
-    With a cache, Python blocks also carry their cached output and the values of the Markdown
-    after them (None if there are none)."""
+    With a cache, Python blocks also carry their cached output, the values of the Markdown
+    after them (None if there are none) and whether the data they read has changed since
+    (and with it, every block after them)."""
     parsed = parse(text)
     hashes = iter(chain(b.code for b in parsed if b.kind == "python"))
     blocks = []
+    stale = False
     for block in parsed:
         if block.kind == "markdown":
             blocks.append({"kind": "markdown", "value": _chop(block.text)})
@@ -108,6 +110,7 @@ def editor_blocks(text: str, cache: Cache | None = None) -> list[dict]:
             if cache is not None:
                 item["output"] = cache.load(h)
                 item["values"] = cache.load_values(h)
+                stale = item["stale"] = stale or cache.stale(h)
             blocks.append(item)
     return blocks
 
@@ -188,12 +191,18 @@ class Session:
             self.interrupted = False
             self.cache.prune(set(keys))
             alive = self.worker is not None and self.worker.alive()
-            if inline and alive and self.state[1] == keys[n]:  # already there: only evaluate
-                yield from evaluate(n)
+            if inline and alive and self.state[1] == keys[n] and not self.cache.stale(keys[n]):
+                yield from evaluate(n)  # already there: only evaluate
                 return
-            # Same blocks before it: run on the current state (even over an older version
-            # of itself, impure and accepted). Else, as knitr: a new worker runs 1..N.
-            fresh = not alive or target < 0 or keys[target] not in self.state
+            # Same blocks before it, reading the same data: run on the current state (even
+            # over an older version of itself, impure and accepted). Else, as knitr: a new
+            # worker runs 1..N.
+            fresh = (
+                not alive
+                or target < 0
+                or keys[target] not in self.state
+                or self.cache.stale(keys[target])
+            )
             if fresh:
                 self._new_worker()
                 yield from evaluate(0)
@@ -211,7 +220,8 @@ class Session:
                 for mime, content in self.worker.run(block.code, block.line + 1, text):
                     items.append((mime, content))
                     yield _ndjson(to_json(mime, content))
-                self.cache.save(keys[i + 1], items)  # only once complete, never if abandoned
+                # Only once complete, never if abandoned.
+                self.cache.save(keys[i + 1], items, self.worker.reads)
                 if not self.interrupted:
                     yield from evaluate(i + 1)
 
@@ -417,6 +427,16 @@ def create_app(root: Path, token: str) -> Starlette:
         await using(session)
         return JSONResponse(await run_in_threadpool(session.assist, kind, *point))
 
+    async def stale_line(request: Request):
+        """{text} -> the line of the first Python block whose data changed on disk, or null:
+        the editor fades it and the ones after it (asked when the window gets focus back)."""
+        _, session = document(request)
+        blocks = [b for b in parse((await request.json())["text"]) if b.kind == "python"]
+        for block, h in zip(blocks, chain(b.code for b in blocks), strict=True):
+            if session.cache.stale(h):
+                return JSONResponse(block.line)
+        return JSONResponse(None)
+
     async def get_modules(request: Request):
         path, _ = document(request)
         return JSONResponse(await run_in_threadpool(modules, path.parent))
@@ -445,6 +465,7 @@ def create_app(root: Path, token: str) -> Starlette:
             Route(f"{doc}/complete", assist, methods=["POST"]),
             Route(f"{doc}/signature", assist, methods=["POST"]),
             Route(f"{doc}/modules", get_modules),
+            Route(f"{doc}/stale", stale_line, methods=["POST"]),
             Route(f"{doc}/interrupt", interrupt, methods=["POST"]),
             Route(f"{doc}/restart", restart, methods=["POST"]),
             Route(doc, editor),

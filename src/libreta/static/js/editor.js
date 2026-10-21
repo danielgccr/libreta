@@ -43,6 +43,7 @@ for (const b of doc.blocks) {
   main.append(block);
   for (const item of b.output ?? []) appendOutput(block, item); // cached (DESIGN §5)
   if (b.values) block.values = b.values;
+  if (b.stale) block.classList.add("stale"); // its data changed on disk (DESIGN §5)
 }
 normalize(main);
 // The caret starts in the document, or in the title of a new one; the page stays at its top.
@@ -325,9 +326,14 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-// Back from the terminal (`uv add pandas`): imports greyed out may be installed now.
+// Back from the terminal (`uv add pandas`): imports greyed out may be installed now, and the
+// data a block read may have changed.
 let moduleList = (doc.modules ?? []).join();
 window.addEventListener("focus", async () => {
+  const { text, lines } = locate(main);
+  api.stale(text).then((line) => {
+    for (const [block, at] of lines) if (at === line && isPython(block)) markStale(block);
+  }, () => {});
   const names = await api.modules().catch(() => null);
   if (!names || names.join() === moduleList) return;
   moduleList = names.join();
