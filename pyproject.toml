@@ -13,6 +13,9 @@ dependencies = [
 [project.scripts]
 libreta = "libreta.cli:main"
 
+[tool.uv]
+default-groups = ["dev", "ejemplos"]  # pandas & co. for the examples, not the package
+
 [build-system]
 requires = ["uv_build>=0.13,<0.14"]
 build-backend = "uv_build"
@@ -31,4 +34,7 @@ dev = [
     "matplotlib>=3.11.2",
     "pytest>=9.1.1",
     "ruff>=0.17.1",
+]
+ejemplos = [
+    "pandas>=3.0.6",
 ]
