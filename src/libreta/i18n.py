@@ -51,6 +51,9 @@ EN = {
     "línea {line}: «{name}» solo existe dentro de libreta": (
         "line {line}: '{name}' only exists inside libreta"
     ),
+    "línea {line}: «{name}» no está instalado en el entorno del documento": (
+        "line {line}: '{name}' is not installed in the document's environment"
+    ),
     # Running
     "El proceso del worker ha terminado.\n": "The worker process has ended.\n",
     "No se ha ejecutado: interrumpido.\n": "Not run: interrupted.\n",

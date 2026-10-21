@@ -1,7 +1,12 @@
 import ast
+import sys
+from importlib.metadata import version
 
 from libreta.cli import main
 from libreta.purl import purl
+
+# The document's environment, in the tests: libreta's own (no .venv above tmp_path).
+PYTHON = f'# /// script\n# requires-python = ">={sys.version_info[0]}.{sys.version_info[1]}"\n'
 
 
 def test_script_with_imports_on_top(tmp_path):
@@ -15,16 +20,23 @@ def test_script_with_imports_on_top(tmp_path):
     )
     script, problems = purl(text, tmp_path)
     assert problems == []
-    assert script == (
-        "# Informe\n\n"
-        "from __future__ import annotations\n\n"
-        "import os\n\n"
-        "import numpy as np\nimport pandas as pd\n\n"
-        "from util import limpiar\n\n"
-        "params = {'mes': 9}\n\n"
-        "# # Datos\n#\n# Cargamos.\n\n"
-        "df = pd.DataFrame({'a': [params['mes']]})\n\n"
-        "try:\n    import polars\nexcept ImportError:\n    polars = None\nnp.mean(df.a)\n"
+    assert (
+        script
+        == (
+            PYTHON + "# dependencies = [\n"
+            f'#     "numpy=={version("numpy")}",\n'
+            f'#     "pandas=={version("pandas")}",\n'
+            "# ]\n# ///\n\n"  # polars, in a try, is optional; util is the document's
+            "# Informe\n\n"
+            "from __future__ import annotations\n\n"
+            "import os\n\n"
+            "import numpy as np\nimport pandas as pd\n\n"
+            "from util import limpiar\n\n"
+            "params = {'mes': 9}\n\n"
+            "# # Datos\n#\n# Cargamos.\n\n"
+            "df = pd.DataFrame({'a': [params['mes']]})\n\n"
+            "try:\n    import polars\nexcept ImportError:\n    polars = None\nnp.mean(df.a)\n"
+        )
     )
     ast.parse(script)
 
@@ -82,7 +94,20 @@ def test_cli(tmp_path, capsys):
     path = tmp_path / "doc.md"
     path.write_text("Texto\n\n```python\nx = 1\n```\n")
     assert main(["purl", str(path)]) == 0
-    assert capsys.readouterr().out == "# Texto\n\nx = 1\n"
+    assert capsys.readouterr().out == PYTHON + "# dependencies = []\n# ///\n\n# Texto\n\nx = 1\n"
     path.write_text("```python\nx = (\n```\n")
     assert main(["purl", str(path)]) == 1
     assert "línea 2: error de sintaxis" in capsys.readouterr().err
+
+
+def test_packages_must_be_installed(tmp_path):
+    text = (
+        "```python\nimport jedi\n```\n\n```python\nfrom paquete_que_no_existe.sub import x\n```\n"
+    )
+    assert purl(text, tmp_path) == (
+        "",
+        ["línea 6: «paquete_que_no_existe» no está instalado en el entorno del documento"],
+    )
+    script, _ = purl("```python\nimport dateutil, jedi.api\n```\n", tmp_path)  # module != name
+    assert f'"python-dateutil=={version("python-dateutil")}"' in script
+    assert f'"jedi=={version("jedi")}"' in script

@@ -137,6 +137,11 @@ runs top to bottom, so first it checks the document does too: a name used above 
 that defines it (easy to miss when blocks ran out of order in the editor) is reported with
 its line, and no script is written.
 
+The script starts with its PEP 723 metadata: the Python version and every package it
+imports, pinned to the version installed in the document's environment, so
+`uv run report.py` works on any machine. Optional dependencies a package loads on its own
+(pyarrow for `read_parquet`) are not seen: import them in the document to declare them.
+
 ### `libreta export`
 
 ```sh

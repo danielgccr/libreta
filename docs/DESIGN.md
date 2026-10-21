@@ -433,6 +433,16 @@ Endpoints:
   definido: solo existe en el worker. Límites: los cuerpos de funciones no se siguen (una
   función que usa un nombre definido después de llamarla pasa) y todas las ramas cuentan
   como ejecutadas.
+  El script empieza con su cabecera PEP 723 (`# /// script`): `requires-python` con la
+  versión del Python del documento (§4.1) y, en `dependencies`, la distribución de cada
+  paquete instalado que importa, fijada a la versión de ese entorno (`pandas==3.0.6`).
+  Así `uv run script.py` funciona en cualquier máquina. Se le pregunta a ese Python
+  (`importlib.metadata.packages_distributions`), como la lista de módulos del editor, así
+  que el nombre del módulo y el de la distribución pueden diferir (`dateutil` →
+  `python-dateutil`). Cuentan los imports que suben arriba; los opcionales, dentro de un
+  `try`, no. Un paquete que no está instalado es otro problema que impide el script.
+  Límite: las dependencias opcionales que un paquete carga por dentro (pyarrow para
+  `read_parquet`, openpyxl para `read_excel`) no se ven; se declaran importándolas.
 - `libreta export doc.md [--to html|pdf] [--css ...]` genera el Markdown tejido (§10) y, si
   Pandoc está instalado, lo convierte. Si a la caché le falta algo, ejecuta antes el
   documento entero; a diferencia de `run`, sigue tras un error, que queda en el documento

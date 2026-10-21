@@ -4,18 +4,24 @@ prose as comments, the imports of every block together at the top (DESIGN §8).
 A script runs top to bottom, so the document must too: every name a block uses at module
 level has to be defined above it. The editor can run blocks out of order and hide that
 (an older version of a block left a name behind); purl checks it in the code itself.
+
+The script declares what it needs (PEP 723: ``uv run script.py`` installs it): the Python
+of the document's environment and the distribution of each installed package it imports,
+pinned to the version there.
 """
 
 import ast
 import builtins
+import json
+import subprocess
 import sys
 from pathlib import Path
 
 from libreta.document import front_params, front_value, parse, split_front_matter
 from libreta.i18n import tr
+from libreta.worker import environment
 
 KNOWN = set(dir(builtins)) | {"__file__", "__builtins__"}
-DEFERRED = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
 COMPREHENSIONS = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
 
 
@@ -29,6 +35,7 @@ def purl(text: str, directory: Path) -> tuple[str, list[str]]:
     defined = KNOWN | ({"params"} if params else set())
     problems: list[str] = []
     imports: dict[str, tuple] = {}  # source -> sort key
+    packages: dict[str, int] = {}  # installed top-level module -> line of its first import
     parts = []
     for block in parse(body):
         if block.kind == "markdown":
@@ -48,13 +55,21 @@ def purl(text: str, directory: Path) -> tuple[str, list[str]]:
         for stmt in _hoistable(tree.body):
             imports[ast.unparse(stmt)] = _sort_key(stmt, directory)
             hoisted.update(range(stmt.lineno, stmt.end_lineno + 1))
+            for module in _modules(stmt):
+                if _group(module, 0, directory) == 2:
+                    packages.setdefault(module, first + stmt.lineno)
         lines = block.code.splitlines()
         code = "\n".join(s for n, s in enumerate(lines, 1) if n not in hoisted).strip("\n")
         if code:
             parts.append(code)
+    python, distributions = _distributions(list(packages), directory)
+    for module, line in packages.items():
+        if not distributions[module]:
+            problems.append(_not_installed(module, line))
     if problems:
         return "", problems
-    head = []
+    pins = sorted({f"{name}=={version}" for d in distributions.values() for name, version in d})
+    head = [_metadata(python, pins)]
     if title := front_value(front, "title"):
         head.append(f"# {title}")
     groups: dict[int, list[str]] = {}
@@ -64,6 +79,46 @@ def purl(text: str, directory: Path) -> tuple[str, list[str]]:
     if params:
         head.append(f"params = {params!r}")
     return "\n\n".join(head + parts) + "\n", []
+
+
+# Run by the document's Python: its version and, for each top-level module in argv, the
+# distributions that provide it with their versions (none if it is not installed).
+DISTRIBUTIONS = """
+import importlib.metadata as m, json, sys
+provides = m.packages_distributions()
+found = {n: sorted({(d, m.version(d)) for d in provides.get(n, [])}) for n in sys.argv[1:]}
+print(json.dumps(["%d.%d" % sys.version_info[:2], found]))
+"""
+
+
+def _distributions(modules: list[str], directory: Path) -> tuple[str, dict[str, list]]:
+    """The Python version of the document's environment (as its worker runs it, see
+    worker.environment) and the [distribution, version] pairs of each module there.
+    ponytail: a namespace package (google.*) maps to every distribution under it; pin
+    them all, since the right one needs each distribution's file list."""
+    python, env = environment(directory)
+    command = [python, "-P", "-c", DISTRIBUTIONS, *modules]
+    result = subprocess.run(command, capture_output=True, text=True, env=env, cwd=directory)
+    version, found = json.loads(result.stdout)
+    return version, found
+
+
+def _metadata(python: str, pins: list[str]) -> str:
+    """The PEP 723 block: ``uv run`` reads it to build the script's environment."""
+    lines = ["# /// script", f'# requires-python = ">={python}"']
+    if pins:
+        lines += ["# dependencies = [", *(f'#     "{pin}",' for pin in pins), "# ]"]
+    else:
+        lines.append("# dependencies = []")
+    return "\n".join([*lines, "# ///"])
+
+
+def _not_installed(module: str, line: int) -> str:
+    return tr(
+        "línea {line}: «{name}» no está instalado en el entorno del documento",
+        line=line,
+        name=module,
+    )
 
 
 def _undefined_name(name: str, line: int) -> str:
@@ -215,13 +270,22 @@ def _sort_key(stmt: ast.Import | ast.ImportFrom, directory: Path) -> tuple:
         module, level = stmt.module or "", stmt.level
     else:
         module, level = stmt.names[0].name, 0
+    group = _group(module, level, directory)
+    return group, isinstance(stmt, ast.ImportFrom), module.lower(), ast.unparse(stmt)
+
+
+def _group(module: str, level: int, directory: Path) -> int:
+    """0 __future__, 1 the standard library, 2 installed packages, 3 the document's own."""
     top = module.partition(".")[0]
     if module == "__future__":
-        group = 0
-    elif level or (directory / f"{top}.py").is_file() or (directory / top).is_dir():
-        group = 3
-    elif top in sys.stdlib_module_names:
-        group = 1
-    else:
-        group = 2
-    return group, isinstance(stmt, ast.ImportFrom), module.lower(), ast.unparse(stmt)
+        return 0
+    if level or (directory / f"{top}.py").is_file() or (directory / top).is_dir():
+        return 3
+    return 1 if top in sys.stdlib_module_names else 2
+
+
+def _modules(stmt: ast.Import | ast.ImportFrom) -> list[str]:
+    """The top-level modules an absolute import loads."""
+    if isinstance(stmt, ast.ImportFrom):
+        return [stmt.module.partition(".")[0]] if stmt.level == 0 and stmt.module else []
+    return [alias.name.partition(".")[0] for alias in stmt.names]
