@@ -40,8 +40,12 @@ for (const b of doc.blocks) {
   if (b.values) block.values = b.values;
 }
 normalize(main);
-if (doc.blocks.length) focusBlock(main.firstElementChild, "start");
-else titleInput.focus(); // a new document starts with its title
+// The caret starts in the document, or in the title of a new one; the page stays at its top.
+if (doc.blocks.length) {
+  const first = main.querySelector("textarea");
+  first.setSelectionRange(0, 0);
+  first.focus({ preventScroll: true });
+} else titleInput.focus();
 
 // Notes sit at the height of their line, so they move whenever lines rewrap.
 const paintAllNotes = () => main.querySelectorAll(".block.md").forEach(paintNotes);
