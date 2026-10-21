@@ -45,6 +45,8 @@ from libreta.worker import Worker, environment
 
 HERE = Path(__file__).parent
 COOKIE = "libreta_token"
+# JSON inside <script>: no "</script>" or "<!--" in the document can end it.
+SCRIPT_SAFE = str.maketrans({"<": "\\u003c", ">": "\\u003e", "&": "\\u0026"})
 
 
 def page(template: str, status: int = 200, /, **values: str) -> HTMLResponse:
@@ -315,27 +317,24 @@ def create_app(root: Path, token: str) -> Starlette:
         e = html.escape
         files = []
         for rel, mtime in await run_in_threadpool(markdown_files, root):
-            folder, _, file = rel.rpartition("/")
-            folder += "/" if folder else ""
+            folder, slash, file = rel.rpartition("/")
             iso = datetime.fromtimestamp(mtime).isoformat(timespec="minutes")
             files.append(
-                f'<li>\n        <a href="/edit/{e(quote(rel))}">'
-                f'<span class="folder">{e(folder)}</span>{e(file)}</a>\n'
-                f'        <time datetime="{iso}">{e(when(mtime))}</time>\n      </li>'
+                f'<li><a href="/edit/{e(quote(rel))}"><span class="folder">{e(folder + slash)}'
+                f'</span>{e(file)}</a><time datetime="{iso}">{e(when(mtime))}</time></li>'
             )
+        invalid = ' aria-invalid="true" aria-describedby="new-error" autofocus' if error else ""
+        alert = error and f'<p id="new-error" class="new-error" role="alert">{e(error)}</p>'
+        empty = '<p class="empty">No hay ficheros Markdown en esta carpeta.</p>'
         return page(
             "index.html",
             400 if error else 200,
             root=e(root.name or str(root)),
             count=f"{len(files)} documento{'' if len(files) == 1 else 's'}",
             name=e(name),
-            invalid=' aria-invalid="true" aria-describedby="new-error" autofocus' if error else "",
-            error=f'<p id="new-error" class="new-error" role="alert">{e(error)}</p>'
-            if error
-            else "",
-            files="<ol>\n      " + "\n      ".join(files) + "\n    </ol>"
-            if files
-            else '<p class="empty">No hay ficheros Markdown en esta carpeta.</p>',
+            invalid=invalid,
+            error=alert,
+            files=f"<ol>{''.join(files)}</ol>" if files else empty,
         )
 
     async def new(request: Request):
@@ -372,18 +371,11 @@ def create_app(root: Path, token: str) -> Starlette:
             "date": front_value(front, "date"),
             "modules": modules(path.parent),  # again on focus: GET .../modules
         }
-        # Escaped so that no "</script>" or "<!--" in the text can end the <script>.
-        data = (
-            json.dumps(doc, sort_keys=True)
-            .replace("<", "\\u003c")
-            .replace(">", "\\u003e")
-            .replace("&", "\\u0026")
-        )
         return page(
             "editor.html",
             name=html.escape(path.name),
             path=html.escape(path.relative_to(root).as_posix()),
-            doc=data,
+            doc=json.dumps(doc, sort_keys=True).translate(SCRIPT_SAFE),
         )
 
     async def put_doc(request: Request):
