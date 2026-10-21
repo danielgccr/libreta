@@ -278,6 +278,8 @@ Matemáticas TeX entre dólares, como las lee Pandoc (`tex_math_dollars`): `$...
 (sin espacio junto a los dólares de dentro ni dígito tras el de cierre, así que `$20 y $30`
 es texto) y `$$...$$`, también en varias líneas si el `$$` abre al principio de una.
 Los dólares en `--text-muted` y la fórmula en `--hl-math`. No se renderiza (sin KaTeX).
+Mientras se escribe, un `$` sin cierre en su línea colorea el resto de la línea como fórmula,
+salvo si le sigue un espacio o un dígito (`$20` sigue siendo texto).
 
 ### 6.5 Valores inline al margen
 

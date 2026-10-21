@@ -18,6 +18,9 @@ const INLINE = new RegExp(
     String.raw`(?<code>(?<tick>\x60+)(?<content>[^\x60](?:[^]*?[^\x60])?)\k<tick>(?!\x60))`,
     // $$display$$, or $inline$: no space inside the dollars, no digit after ($20 and $30).
     String.raw`(?<math>(?<dd>\$\$)(?<dc>.+?)\$\$|\$(?=[^\s$])(?<ic>[^$]*?[^\s\\$])\$(?!\d))`,
+    // Math still being typed: a $ with no closing one up to the end of the line. Not before
+    // a digit, so that a price stays prose.
+    String.raw`(?<tex>(?<td>\$\$?)(?=[^\s$\d])(?<tc>[^$]*)$)`,
     String.raw`(?<auto><https?:\/\/[^>\s]+>)`,
     String.raw`(?<link>(?<open>!?\[)(?<text>[^\]\n]*)(?<target>\]\([^)\n]*\)))`,
     String.raw`(?<star>(?<sd>\*\*|\*|~~)(?=[^\s*~])(?<sc>.+?)(?<=\S)\k<sd>)`,
@@ -82,7 +85,7 @@ function inline(text) {
     } else if (g.math) {
       const dollars = g.dd ?? "$";
       html += mark(dollars) + math(g.dc ?? g.ic) + mark(dollars);
-    } else if (g.auto) html += span("md-link", escapeHtml(g.auto));
+    } else if (g.tex) html += mark(g.td) + math(g.tc); else if (g.auto) html += span("md-link", escapeHtml(g.auto));
     else if (g.link) html += mark(g.open) + span("md-link", escapeHtml(g.text)) + mark(g.target);
     else if (g.star) html += mark(g.sd) + inline(g.sc) + mark(g.sd);
     else html += mark(g.ud) + inline(g.uc) + mark(g.ud);
