@@ -276,7 +276,19 @@ y `getBoundingClientRect()`.
   Shift+Enter cierra la lista y salta de línea (con la indentación de Enter). Ctrl+Enter
   sigue ejecutando.
 
-### 6.7 Limitación asumida
+### 6.7 Accesibilidad
+
+- Los bloques de Python se anuncian numerados ("Python, bloque 2 de 5"); se renumeran en
+  cada cambio de estructura.
+- Los valores `py` del margen describen el bloque de Markdown (`aria-describedby`): "media =
+  44.0". La expresión va como texto oculto; a la vista no cambia nada.
+- Una región `aria-live="polite"` anuncia cómo acaba cada ejecución ("Bloque 2 ejecutado",
+  "Bloque 3: error"), los valores actualizados y el guardado. Solo el final: las
+  ejecuciones rápidas no llenan de avisos.
+- La decoración generada con CSS (la flecha hacia la lista, el "·" entre valores) lleva
+  texto alternativo propio en `content`.
+
+### 6.8 Limitación asumida
 
 No se puede seleccionar con el ratón texto que abarque dos bloques. Se mitiga con el
 Ctrl+A / Ctrl+C sobre el documento completo (§2).

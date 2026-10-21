@@ -294,6 +294,7 @@ body {
 }
 .note > span + span::before {
   content: " · ";
+  content: " · " / ", "; /* read out as a pause */
   color: var(--text-muted);
 }
 .note > .error {

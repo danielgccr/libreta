@@ -24,6 +24,7 @@ import { setModules } from "./py-highlight.js";
 const main = document.getElementById("doc");
 const titleInput = document.getElementById("title");
 const dateLine = document.getElementById("date");
+const status = document.getElementById("status");
 const doc = JSON.parse(document.getElementById("doc-data").textContent);
 main.dataset.finalNewline = doc.finalNewline ? "1" : "";
 setModules(doc.modules); // before the blocks paint
@@ -63,6 +64,13 @@ let allSelected = false; // Ctrl+A: the whole document, not one textarea
 const isDirty = () => serialize(main) !== saved || titleInput.value.trim() !== savedTitle.trim();
 const showDirty = () => (document.title = (isDirty() ? "• " : "") + pageTitle);
 
+// Screen readers hear how runs and saves end (aria-live="polite"). Emptied first, so the
+// same message twice in a row is still read out.
+function announce(message) {
+  status.textContent = "";
+  setTimeout(() => (status.textContent = message), 50);
+}
+
 function showDate(date) {
   const day = new Date(`${date}T00:00`);
   if (!date) dateLine.textContent = "";
@@ -92,6 +100,7 @@ async function save() {
     savedTitle = title;
     showDate(result.date);
     showDirty();
+    announce("Guardado");
   } catch (error) {
     alert(`No se ha podido guardar: ${error.message}`);
   }
@@ -111,6 +120,7 @@ async function run(block) {
   const { text, lines } = locate(main);
   const python = new Map([...lines].filter(([b]) => isPython(b)).map(([b, line]) => [line, b]));
   let current = isPython(block) ? block : null; // the block whose output streams in
+  const failed = new Set(); // blocks with an error, for the announcement
   if (current) {
     clearOutput(current);
     current.classList.add("running");
@@ -131,11 +141,19 @@ async function run(block) {
         clearOutput(current);
       } else if (current) {
         appendOutput(current, item);
+        if (item.mime === "error") failed.add(current);
       }
     });
+    if (!isPython(block)) announce("Valores actualizados");
+    else {
+      const name = `Bloque ${[...main.querySelectorAll(".block.py")].indexOf(block) + 1}`;
+      if (failed.has(block)) announce(`${name}: error`);
+      else announce(`${name} ejecutado${failed.size ? ", con errores en bloques anteriores" : ""}`);
+    }
   } catch (error) {
     if (current) appendOutput(current, { mime: "error", content: `${error.message}\n` });
     else alert(error.message);
+    announce(`No se ha podido ejecutar: ${error.message}`);
   } finally {
     current?.classList.remove("running");
     block.classList.remove("running");

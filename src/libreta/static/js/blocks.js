@@ -59,6 +59,9 @@ export function normalize(main) {
     prev = block;
   }
   if (!prev || isPython(prev)) main.append(virtualBlock());
+  // Screen readers tell the code blocks apart by their number.
+  const python = main.querySelectorAll(".block.py");
+  python.forEach((b, i) => textareaOf(b).setAttribute("aria-label", `Python, bloque ${i + 1} de ${python.length}`));
 }
 
 function blockData(main) {
@@ -246,34 +249,41 @@ export function appendOutput(block, { mime, content, base64 }) {
 // Values of the `py` expressions of a Markdown block, in the right margin at the height of
 // their line (DESIGN §6.5). They live on the Python block above (or on main, before the
 // first one) as {expression: {text} | {error}}; the <pre>'s .md-py spans give the heights.
+// They also describe the block's textarea to screen readers: "expression = value".
+let notesIds = 0;
+
 export function paintNotes(block) {
   let owner = block.previousElementSibling;
   while (owner && !isPython(owner)) owner = owner.previousElementSibling;
   const values = (owner ?? block.parentElement).values ?? {};
   const pre = block.querySelector("pre");
   const top = pre.getBoundingClientRect().top;
-  const lines = new Map(); // height -> values on that visual line
+  const lines = new Map(); // height -> [expression, value] on that visual line
   for (const span of pre.querySelectorAll(".md-py")) {
-    const value = values[span.textContent.replace(/^`+|`+$/g, "").slice(2).trim()];
-    if (!value) continue;
+    const expression = span.textContent.replace(/^`+|`+$/g, "").slice(2).trim();
+    if (!values[expression]) continue;
     const y = Math.round(span.getBoundingClientRect().top - top);
-    lines.set(y, [...(lines.get(y) ?? []), value]);
+    lines.set(y, [...(lines.get(y) ?? []), [expression, values[expression]]]);
   }
   let notes = block.querySelector(".notes");
   if (!notes) {
     notes = document.createElement("div");
     notes.className = "notes";
-    notes.setAttribute("aria-hidden", "true");
+    notes.id = `notes-${++notesIds}`;
     block.querySelector(".layers").append(notes);
+    textareaOf(block).setAttribute("aria-describedby", notes.id);
   }
   notes.replaceChildren(
     ...[...lines].map(([y, line]) => {
       const note = document.createElement("div");
       note.className = "note";
       note.style.top = `${y}px`;
-      for (const value of line) {
+      for (const [expression, value] of line) {
         const span = document.createElement("span");
-        span.textContent = value.text ?? value.error;
+        const said = document.createElement("span"); // read out, not shown
+        said.className = "visually-hidden";
+        said.textContent = value.error ? `${expression}: ` : `${expression} = `;
+        span.append(said, value.text ?? value.error);
         if (value.error) span.className = "error";
         note.append(span);
       }
