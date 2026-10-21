@@ -13,7 +13,8 @@ export function handlePythonKey(event, textarea) {
     else insert(textarea, INDENT);
     return true;
   }
-  if (event.key === "Enter" && !mod && !event.shiftKey && !event.altKey) {
+  // Shift+Enter too: it is how a line breaks while the completion list is open.
+  if (event.key === "Enter" && !mod && !event.altKey) {
     newline(textarea);
     return true;
   }

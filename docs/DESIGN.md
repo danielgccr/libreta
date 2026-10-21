@@ -249,8 +249,8 @@ y `getBoundingClientRect()`.
 - Transporte: `fetch` con JSON (no HTMX).
 - Posición del desplegable: `<span>` marcador en la posición del cursor dentro del `<pre>`.
 - Flechas para navegar, Tab o Enter para aceptar (vía `execCommand`), Escape para cerrar.
-  Si la lista se abrió sola al escribir un nombre, Enter solo acepta tras elegir con las
-  flechas (si no, es un salto de línea); Tab acepta siempre. Ctrl+Enter sigue ejecutando.
+  Shift+Enter cierra la lista y salta de línea (con la indentación de Enter). Ctrl+Enter
+  sigue ejecutando.
 
 ### 6.7 Limitación asumida
 

@@ -2,9 +2,7 @@
 // name starts, on "." and '["' (or Ctrl+Space), and then filtered here while the name is
 // typed; the signature on "(" and ",". Both sit at the caret, found with the <pre> marker
 // (caretPoint). Accepting inserts through execCommand, so undo keeps working.
-//
-// A list that opened on its own while typing a name takes Enter only once an item has been
-// chosen with the arrows: Enter at the end of a line must stay a line break. Tab always takes.
+// With the list open, Enter and Tab take an item; Shift+Enter closes it and breaks the line.
 
 import * as api from "./api.js";
 import { caretPoint, isPython, locate } from "./blocks.js";
@@ -14,8 +12,7 @@ const TYPING = /^[\w"']*$/u; // what may be typed while the list stays open (nam
 const WORD = /(?<!\w)[^\W\d]\w*$/u; // a name being typed, right before the caret
 const MOVES = new Set(["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"]);
 
-// {textarea, pos, items, shown, index, element, explicit, chosen}; pos: caret when fetched
-let menu = null;
+let menu = null; // {textarea, pos, items, shown, index, element}; pos: caret when fetched
 let tip = null; // the signature element
 const timers = { complete: 0, signature: 0 };
 const latest = { complete: 0, signature: 0 }; // only the latest answer of each kind shows
@@ -27,16 +24,14 @@ export function handleAssistKey(event, textarea) {
     request("complete", textarea, { delay: 0 });
     return true;
   }
-  if (MOVES.has(event.key) || (mod && event.key === "Enter")) closeAssist();
+  if (MOVES.has(event.key) || (event.key === "Enter" && (mod || event.shiftKey))) closeAssist();
   if (menu?.textarea === textarea) {
     const plain = !mod && !event.shiftKey && !event.altKey;
     if ((event.key === "ArrowDown" || event.key === "ArrowUp") && plain) {
       select(menu.index + (event.key === "ArrowDown" ? 1 : -1));
-      menu.chosen = true;
       return true;
     }
-    if (event.key === "Enter" && plain && !(menu.explicit || menu.chosen)) closeMenu();
-    else if ((event.key === "Tab" || event.key === "Enter") && plain) {
+    if ((event.key === "Tab" || event.key === "Enter") && plain) {
       accept(menu.shown[menu.index]);
       return true;
     }
@@ -85,7 +80,7 @@ function request(kind, textarea, { delay = DEBOUNCE, implicit = false } = {}) {
       return; // no help is not worth an alert
     }
     if (id !== latest[kind] || document.activeElement !== textarea) return;
-    if (kind === "complete") openMenu(textarea, pos, items, !implicit);
+    if (kind === "complete") openMenu(textarea, pos, items);
     else showTip(textarea, items[0]);
   }, delay);
 }
@@ -113,7 +108,7 @@ function place(element, textarea, above) {
   element.style.top = `${above ? y : y + lineHeight}px`;
 }
 
-function openMenu(textarea, pos, items, explicit) {
+function openMenu(textarea, pos, items) {
   closeMenu();
   const element = document.createElement("ul");
   element.className = "complete";
@@ -124,7 +119,7 @@ function openMenu(textarea, pos, items, explicit) {
     if (li) accept(menu.shown[li.dataset.i]);
   });
   document.body.append(element);
-  menu = { textarea, pos, items, shown: [], index: 0, element, explicit, chosen: false };
+  menu = { textarea, pos, items, shown: [], index: 0, element };
   filter();
 }
 
