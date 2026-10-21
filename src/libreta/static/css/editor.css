@@ -72,6 +72,7 @@ header.front > .title {
 }
 .path::before {
   content: "←";
+  content: "←" / ""; /* decoration: not read out (browsers without it keep the line above) */
   display: inline-block;
   margin-inline-end: 0.5ch;
   transition: transform 0.15s ease;
@@ -83,6 +84,16 @@ header.front > .title {
   .path::before {
     transition: none;
   }
+}
+
+/* Read out, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Index of documents (GET /): path on the left, last edit on the right. */
