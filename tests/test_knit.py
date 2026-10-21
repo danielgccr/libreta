@@ -81,3 +81,14 @@ def test_changed_data_makes_the_cache_incomplete(tmp_path):
     assert run(path) == 0 and complete(path)
     os.utime(data, ns=(0, 0))
     assert not complete(path)  # export runs the document again
+
+
+@pytest.mark.skipif(shutil.which("pandoc") is None, reason="needs Pandoc")
+def test_export_output_with_params(tmp_path, monkeypatch):
+    path = tmp_path / "informe.md"
+    path.write_text("---\nparams:\n  mes: 9\n---\n\n```python\nprint(params['mes'])\n```\n")
+    (tmp_path / "salida").mkdir()
+    monkeypatch.chdir(tmp_path / "salida")  # -o is relative to where libreta runs
+    assert main(["export", str(path), "-p", "mes=10", "-o", "informe-10.html"]) == 0
+    assert "10" in (tmp_path / "salida" / "informe-10.html").read_text()
+    assert not (tmp_path / "informe.html").exists()

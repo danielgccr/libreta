@@ -438,6 +438,9 @@ Endpoints:
   documento entero; a diferencia de `run`, sigue tras un error, que queda en el documento
   como en el editor. El código de salida es 1 si el documento exportado contiene errores.
   `--css` añade hojas detrás de `tokens.css` y `export.css` (sirve para retocar).
+  `-o fichero` escribe en otro sitio que `doc.html` (un informe por valor de los
+  parámetros: `-p mes=2026-10 -o informe-2026-10.html`); su extensión `.pdf` vale por
+  `--to pdf`.
 
 ## 9. Estilo
 

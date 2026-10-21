@@ -51,7 +51,10 @@ def main(argv: list[str] | None = None) -> int:
         )
     purl_parser = commands.add_parser("purl", help="the document as a Python script")
     purl_parser.add_argument("path", type=Path)
-    export_parser.add_argument("--to", choices=["html", "pdf"], default="html")
+    export_parser.add_argument("--to", choices=["html", "pdf"], help="default: html")
+    export_parser.add_argument(
+        "-o", "--output", type=Path, help="the file to write (default: the document's name)"
+    )
     export_parser.add_argument(
         "--css", type=Path, action="append", default=[], help="extra style sheet (HTML)"
     )
@@ -62,7 +65,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         return run(args.path, overrides=args.param)
     if args.command == "export":
-        return export(args.path, args.to, args.css, args.keep_md, args.param)
+        pdf = args.output is not None and args.output.suffix == ".pdf"
+        to = args.to or ("pdf" if pdf else "html")
+        return export(args.path, to, args.css, args.keep_md, args.param, args.output)
     if args.command == "purl":
         return purl(args.path)
     if args.command is None or args.path.is_dir():
@@ -165,14 +170,20 @@ def purl(path: Path) -> int:
 
 
 def export(
-    path: Path, to: str, css: list[Path], keep_md: bool = False, overrides: Sequence[str] = ()
+    path: Path,
+    to: str,
+    css: list[Path],
+    keep_md: bool = False,
+    overrides: Sequence[str] = (),
+    output: Path | None = None,
 ) -> int:
     """Knit the document from its cache (running it first if the cache is incomplete) into
     <name>.knit.md, and convert that with Pandoc when it is installed (DESIGN §10). The
     knitted Markdown and its figures go once converted (the output embeds them), unless
     `keep_md`; without Pandoc, or if it fails, they are what is left.
     Errors stay in the document, as in the editor; they make the exit status 1.
-    `overrides`: KEY=VALUE for the document's params."""
+    `overrides`: KEY=VALUE for the document's params; `output`: where to write (default:
+    next to the document, with its name)."""
     for file in [path, *css]:
         if not file.is_file():
             print(f"libreta: no existe {file}", file=sys.stderr)
@@ -191,8 +202,8 @@ def export(
     if shutil.which("pandoc") is None:
         print(f"libreta: sin Pandoc; el Markdown tejido está en {knitted}", file=sys.stderr)
         return 1 if problems else 0
-    output = path.with_suffix(f".{to}")
-    command = ["pandoc", knitted.name, "--from", "commonmark_x", "--output", output.name]
+    output = output.resolve() if output else path.with_suffix(f".{to}")
+    command = ["pandoc", knitted.name, "--from", "commonmark_x", "--output", str(output)]
     if not front_value(split_front_matter(markdown)[0], "title"):
         command += ["--metadata", f"pagetitle={path.stem}"]  # else Pandoc takes the title
     engine = None

@@ -144,6 +144,7 @@ libreta export report.md                  # report.html, self-contained
 libreta export report.md --to pdf         # report.pdf
 libreta export report.md --css mine.css   # style tweaks on top of libreta's
 libreta export report.md --keep-md        # keep the intermediate Markdown
+libreta export report.md -p month=2026-10 -o report-2026-10.pdf
 ```
 
 Knits the document from its cache (running it first if anything is missing) and converts
