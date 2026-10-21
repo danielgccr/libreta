@@ -120,3 +120,18 @@ def test_inline_values(worker):
     assert values["Bad()"] == {"error": "ValueError: no"}
     assert values["1 +"]["error"].startswith("SyntaxError")
     assert run(worker, "z") == [("text/plain", "2.5")]
+
+
+def test_assist(worker):
+    run(worker, "d = {'alpha': 1}\nimport os")
+    names = {c["name"]: c for c in worker.assist("complete", "d.", 1, 2)}
+    assert names["keys"] == {"name": "keys", "complete": "keys", "type": "function"}
+    [key] = worker.assist("complete", 'd["', 1, 3)  # live objects: dict keys
+    assert key["complete"] == 'alpha"'
+    pa = worker.assist("complete", "os.pa", 1, 5)
+    assert "path" in {c["name"] for c in pa} and "PathLike" not in {c["name"] for c in pa}
+    assert worker.assist("complete", "import json\njson.lo", 2, 7)[0]["name"] == "load"
+    [sig] = worker.assist("signature", "divmod(1, ", 1, 10)[:1]
+    assert sig["name"] == "divmod" and sig["index"] == 1 and len(sig["params"]) == 2
+    assert worker.assist("complete", "x", 5, 0) == []  # jedi raises: no help, no error
+    assert run(worker, "1") == [("text/plain", "1")]

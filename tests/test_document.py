@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from libreta.document import expressions, parse, serialize
+from libreta.document import code_at, expressions, parse, serialize
 
 EJEMPLOS = sorted((Path(__file__).parent.parent / "ejemplos").glob("*.md"))
 
@@ -157,3 +157,18 @@ def test_expressions_by_point_of_the_document():
     )
     assert expressions(parse(text)) == [["1 + 1"], ["x", "x * 2"], []]
     assert expressions(parse("")) == [[]]
+
+
+def test_code_at():
+    text = (
+        "Hola `py da` y\n\n"  # 1
+        "```python\nimport os\nos.pa\n```\n\n"  # 3-6
+        "```python\n```\n"  # 8-9
+        "Más `py os.pa\n"  # 10
+    )
+    assert code_at(text, 1, 10) == ("d", 1, 1)  # inline, before any block
+    assert code_at(text, 1, 3) is None  # prose
+    assert code_at(text, 5, 5) == ("import os\nos.pa\n", 2, 5)
+    assert code_at(text, 6, 0) is None  # the closing fence
+    assert code_at(text, 9, 0) == ("import os\nos.pa\n", 3, 0)  # an empty block
+    assert code_at(text, 10, 13) == ("import os\nos.pa\nos.pa", 3, 5)  # typing, unclosed

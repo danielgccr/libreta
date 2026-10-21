@@ -15,6 +15,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
 from starlette.responses import (
+    JSONResponse,
     PlainTextResponse,
     RedirectResponse,
     Response,
@@ -25,7 +26,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 from libreta.cache import GENESIS, Cache, chain, to_json
-from libreta.document import Block, expressions, parse
+from libreta.document import Block, code_at, expressions, parse
 from libreta.worker import Worker
 
 HERE = Path(__file__).parent
@@ -152,10 +153,7 @@ class Session:
             # of itself, impure and accepted). Else, as knitr: a new worker runs 1..N.
             fresh = not alive or target < 0 or keys[target] not in self.state
             if fresh:
-                if self.worker is not None:
-                    self.worker.close()
-                self.worker = Worker(self.path)
-                self.state = (GENESIS, GENESIS)
+                self._new_worker()
                 yield from evaluate(0)
             for i in range(0 if fresh else target, target + 1):
                 # An error in an earlier block does not stop the rest (the editor is
@@ -174,6 +172,23 @@ class Session:
                 self.cache.save(keys[i + 1], items)  # only once complete, never if abandoned
                 if not self.interrupted:
                     yield from evaluate(i + 1)
+
+    def assist(self, kind: str, code: str, line: int, column: int) -> list[dict]:
+        """Completions or signatures from jedi in the worker (see Worker.assist)."""
+        if not self.lock.acquire(blocking=False):  # ponytail: no help while a block runs
+            return []
+        try:
+            if self.worker is None or not self.worker.process.is_alive():
+                self._new_worker()
+            return self.worker.assist(kind, code, line, column)
+        finally:
+            self.lock.release()
+
+    def _new_worker(self) -> None:
+        if self.worker is not None:
+            self.worker.close()
+        self.worker = Worker(self.path)
+        self.state = (GENESIS, GENESIS)
 
     def interrupt(self) -> None:
         self.interrupted = True
@@ -230,6 +245,15 @@ def create_app(path: Path, token: str) -> Starlette:
         lines = session.run(text, parsed, n, inline)
         return StreamingResponse(lines, media_type="application/x-ndjson")
 
+    async def assist(request: Request):
+        """POST /complete and /signature: {text, line, column} -> JSON list (DESIGN §6.6)."""
+        data = await request.json()
+        point = code_at(data["text"], data["line"], data["column"])
+        if point is None:
+            return JSONResponse([])
+        kind = request.url.path.strip("/")
+        return JSONResponse(await run_in_threadpool(session.assist, kind, *point))
+
     async def interrupt(request: Request):
         session.interrupt()
         return Response(status_code=204)
@@ -248,6 +272,8 @@ def create_app(path: Path, token: str) -> Starlette:
             Route("/", editor),
             Route("/doc", put_doc, methods=["PUT"]),
             Route("/run", run, methods=["POST"]),
+            Route("/complete", assist, methods=["POST"]),
+            Route("/signature", assist, methods=["POST"]),
             Route("/interrupt", interrupt, methods=["POST"]),
             Route("/restart", restart, methods=["POST"]),
             Mount("/static", RevalidatedStaticFiles(directory=HERE / "static"), name="static"),

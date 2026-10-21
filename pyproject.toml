@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Cuaderno de Python minimalista centrado en la prosa"
 requires-python = ">=3.12"
 dependencies = [
+    "jedi>=0.20.1",
     "jinja2>=3.1.6",
     "starlette>=1.9.0",
     "uvicorn>=0.54.0",

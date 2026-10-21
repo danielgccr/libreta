@@ -263,3 +263,22 @@ def test_inline_values_follow_the_blocks(tmp_path):
         assert b'"values": {"2 + 2": {"text": "4"}}' in body
     finally:
         post_json(doc_app, "/restart", {})
+
+
+def test_complete_and_signature(tmp_path):
+    doc_app = create_app(tmp_path / "doc.md", "secret")
+    text = "```python\nimport os\nos.getc\n```\n\nEn `py os.getc"
+    try:
+        status, _, body = post_json(doc_app, "/complete", {"text": text, "line": 3, "column": 7})
+        assert status == 200 and {"name": "getcwd", "complete": "wd", "type": "function"} in (
+            json.loads(body)
+        )
+        [_, _, body] = post_json(doc_app, "/complete", {"text": text, "line": 6, "column": 14})
+        assert "getcwd" in {c["name"] for c in json.loads(body)}
+        [_, _, body] = post_json(doc_app, "/complete", {"text": text, "line": 5, "column": 0})
+        assert json.loads(body) == []
+        text = "```python\nround(1.5, \n```\n"
+        [_, _, body] = post_json(doc_app, "/signature", {"text": text, "line": 2, "column": 11})
+        assert json.loads(body)[0]["name"] == "round"
+    finally:
+        post_json(doc_app, "/restart", {})

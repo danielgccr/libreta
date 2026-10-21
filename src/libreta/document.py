@@ -23,6 +23,7 @@ LIST_ITEM = re.compile(r"( {0,3})([-+*]|\d{1,9}[.)])( +|$)")
 # A backslash escape (so \` opens nothing) or a code span, as in md-highlight.js.
 CODE_SPAN = re.compile(r"\\[!-/:-@\[-`{-~]|(`+)([^`](?:.*?[^`])?)\1(?!`)")
 INLINE_PY = re.compile(r"py\s")
+TYPING_PY = re.compile(r"`py\s+([^`]*)\Z")  # an inline expression open up to the cursor
 
 
 @dataclass(frozen=True)
@@ -148,3 +149,20 @@ def _inline_python(markdown: str) -> list[str]:
             spans = (m[2] for m in CODE_SPAN.finditer(line) if m[2])
             found += [code[2:].strip() for code in spans if INLINE_PY.match(code)]
     return found
+
+
+def code_at(text: str, line: int, column: int) -> tuple[str, int, int] | None:
+    """What jedi sees at a cursor of the document (1-based line, 0-based column): the code of
+    every Python block up to the cursor's, or before it plus the inline `py` expression
+    typed so far. Returns (code, line, column) in that code, or None outside both."""
+    blocks = [b for b in parse(text) if b.kind == "python" and b.line < line]
+    codes = [b.code if b.code.endswith("\n") or not b.code else b.code + "\n" for b in blocks]
+    if blocks and line - blocks[-1].line <= max(1, codes[-1].count("\n")):
+        prefix = "".join(codes[:-1])
+        return prefix + codes[-1], prefix.count("\n") + line - blocks[-1].line, column
+    lines = text.split("\n")
+    typing = TYPING_PY.search(lines[line - 1][:column]) if line <= len(lines) else None
+    if typing is None:
+        return None
+    prefix = "".join(codes)
+    return prefix + typing[1], prefix.count("\n") + 1, len(typing[1])

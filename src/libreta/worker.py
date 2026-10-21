@@ -40,6 +40,16 @@ class Worker:
                 values = content
         return values
 
+    def assist(self, kind: str, code: str, line: int, column: int) -> list[dict]:
+        """jedi on the live namespace (DESIGN §6.6). kind "complete": ``[{name, complete,
+        type}]``, where `complete` is what to insert at the cursor; kind "signature":
+        ``[{name, params, index}]``, `index` being the parameter under the cursor."""
+        result = []
+        for mime, content in self._request((kind, code, line, column, "")):
+            if mime == "assist":
+                result = content
+        return result
+
     def _request(self, message: tuple) -> Iterator[tuple[str, str | bytes]]:
         for _ in self._messages():  # leftovers of an abandoned run (client went away)
             pass
@@ -128,13 +138,16 @@ def _main(conn, filename: str) -> None:
         except EOFError:
             return
         # Tracebacks quote the document being edited, not the file on disk.
-        linecache.cache[filename] = (len(source), None, source.splitlines(True), filename)
+        if source:  # completion requests carry none
+            linecache.cache[filename] = (len(source), None, source.splitlines(True), filename)
         try:
             if kind == "run":
                 _execute(namespace, *args, filename)
-            else:
+            elif kind == "inline":
                 values = {e: _evaluate(namespace, e, filename) for e in args[0]}
                 _send(("output", "values", values))
+            else:
+                _send(("output", "assist", _assist(kind, namespace, *args)))
         except KeyboardInterrupt:  # landed between the user's code and our bookkeeping
             _running = False
             emit("error", "KeyboardInterrupt\n")
@@ -181,6 +194,28 @@ def _evaluate(namespace: dict, expression: str, filename: str) -> dict:
         result = {"error": traceback.format_exception_only(e)[-1].strip()}
     _running = False
     return result
+
+
+def _assist(kind: str, namespace: dict, code: str, line: int, column: int) -> list[dict]:
+    import jedi  # only now: a worker that never completes never loads it
+
+    try:
+        script = jedi.Interpreter(code, namespaces=[namespace])
+        if kind == "signature":
+            return [
+                {"name": s.name, "params": [p.to_string() for p in s.params], "index": s.index}
+                for s in script.get_signatures(line, column)
+            ]
+        before = code.splitlines()[line - 1][:column] if code else ""
+        return [
+            {"name": c.name, "complete": c.complete, "type": c.type}
+            for c in script.complete(line, column)
+            # jedi also matches other cases (os.pa -> PathLike), but its `complete` assumes
+            # the name's own case: inserting it would give "pathLike".
+            if before.endswith(c.name[: len(c.name) - len(c.complete)])
+        ]
+    except Exception:  # jedi on half-written code: no help rather than an error
+        return []
 
 
 def _format(error: BaseException, filename: str) -> str:
