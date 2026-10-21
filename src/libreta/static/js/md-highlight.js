@@ -11,7 +11,7 @@ const HEADING = /^( {0,3}#{1,6})([ \t].*|)$/;
 const RULE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const QUOTE = /^( {0,3}(?:>[ \t]?)+)(.*)$/;
 const ITEM = /^([ \t]*(?:[-+*]|\d{1,9}[.)]))([ \t].*|)$/;
-const NOTE_DEF = /^( {0,3}\[\^[^\]\s]+\]:)(.*)$/; // [^1]: footnote text
+const NOTE_DEF = /^( {0,3}\[\^[^[\]]+\]:)(.*)$/; // [^1]: footnote text (labels may have spaces)
 const DISPLAY_OPEN = /^ {0,3}\$\$(?!.*\$\$)/; // $$ whose closing $$ comes on a later line
 
 const INLINE = new RegExp(
@@ -24,7 +24,8 @@ const INLINE = new RegExp(
     // a digit, so that a price stays prose.
     String.raw`(?<tex>(?<td>\$\$?)(?=[^\s$\d])(?<tc>[^$]*)$)`,
     String.raw`(?<auto><https?:\/\/[^>\s]+>)`,
-    String.raw`(?<note>\[\^(?<label>[^\]\s]+)\])`, // footnote reference: [^1]
+    // Footnote reference, [^1], or one still being typed: no ] up to the end of the line.
+    String.raw`(?<note>\[\^(?<label>[^[\]]+)(?<close>\])|\[\^(?<typed>[^[\]]*)$)`,
     String.raw`(?<link>(?<open>!?\[)(?<text>[^\]\n]*)(?<target>\]\([^)\n]*\)))`,
     String.raw`(?<star>(?<sd>\*\*|\*|~~)(?=[^\s*~])(?<sc>.+?)(?<=\S)\k<sd>)`,
     String.raw`(?<under>(?<![\p{L}\p{N}])(?<ud>__|_)(?=[^\s_])(?<uc>.+?)(?<=\S)\k<ud>(?![\p{L}\p{N}]))`,
@@ -90,7 +91,8 @@ function inline(text) {
       const dollars = g.dd ?? "$";
       html += mark(dollars) + math(g.dc ?? g.ic) + mark(dollars);
     } else if (g.tex) html += mark(g.td) + math(g.tc); else if (g.auto) html += span("md-link", escapeHtml(g.auto));
-    else if (g.note) html += mark("[^") + span("md-link", escapeHtml(g.label)) + mark("]");
+    else if (g.note)
+      html += mark("[^") + span("md-link", escapeHtml(g.label ?? g.typed)) + (g.close ? mark("]") : "");
     else if (g.link) html += mark(g.open) + span("md-link", escapeHtml(g.text)) + mark(g.target);
     else if (g.star) html += mark(g.sd) + inline(g.sc) + mark(g.sd);
     else html += mark(g.ud) + inline(g.uc) + mark(g.ud);

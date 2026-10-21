@@ -282,7 +282,8 @@ Mientras se escribe, un `$` sin cierre en su línea colorea el resto de la líne
 salvo si le sigue un espacio o un dígito (`$20` sigue siendo texto).
 Notas al pie con referencia, `[^1]` en el texto y `[^1]: …` al principio de línea: los
 corchetes, el `^` y el `[^1]:` de la definición en `--text-muted`, la etiqueta de la
-referencia en `--accent`. Las notas en línea `^[…]` no: GitHub no las lee y el lector
+referencia en `--accent`. La etiqueta admite espacios (`[^la nota]`) y, mientras se
+escribe, un `[^` sin cierre en su línea colorea el resto como etiqueta. Las notas en línea `^[…]` no: GitHub no las lee y el lector
 `commonmark_x` de Pandoc tampoco. En el editor la nota se queda donde se escribe; el margen
 es de los valores `py` (§6.5).
 
