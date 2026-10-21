@@ -7,9 +7,11 @@ items, where mime is a real MIME type for displayed values or one of ``stdout``,
 ``stderr`` and ``error`` (a formatted traceback).
 """
 
+import ast
 import builtins
 import functools
 import importlib.util
+import inspect
 import linecache
 import os
 import re
@@ -190,8 +192,11 @@ def _on_sigint(signum, frame):
     global _pending
     if _sending:
         _pending = True
+    elif _running and _task and not sys.modules["asyncio"].current_task(_loop):
+        # The event loop between steps: an exception there can break it. Cancel instead.
+        _loop.call_soon_threadsafe(_task.cancel)
     elif _running:
-        raise KeyboardInterrupt
+        raise KeyboardInterrupt  # inside a task's step, asyncio lets it through cleanly
 
 
 def _main(conn, filename: str) -> None:
@@ -245,9 +250,9 @@ def _execute(namespace: dict, code: str, lineno: int, filename: str) -> None:
     _running = True
     try:
         try:
-            exec(compile(body, filename, "exec"), namespace)
+            _run_code(body, filename, "exec", namespace)
             if last is not None:
-                value = eval(compile(last, filename, "eval"), namespace)
+                value = _run_code(last, filename, "eval", namespace)
                 if value is not None:
                     emit(*display.represent(value))
         finally:
@@ -260,13 +265,42 @@ def _execute(namespace: dict, code: str, lineno: int, filename: str) -> None:
         emit("error", _format(error, filename))
 
 
+_loop = None  # the event loop of blocks that await, kept from one to the next
+_task = None  # the block's task while that loop runs it
+
+
+def _run_code(source, filename: str, mode: str, namespace: dict):
+    """exec or eval, with top-level await as in Jupyter. Code that awaits runs on one event
+    loop the worker keeps, so what a block makes (a client session) works in the next;
+    code that does not never touches it (asyncio.run still works there)."""
+    global _loop, _task
+    code = compile(source, filename, mode, flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+    result = eval(code, namespace)
+    if not code.co_flags & inspect.CO_COROUTINE:
+        return result
+    import asyncio
+
+    _loop = _loop or asyncio.new_event_loop()
+    _task = _loop.create_task(result)
+    try:
+        return _loop.run_until_complete(_task)
+    except asyncio.CancelledError:  # Escape while the loop waited (see _on_sigint)
+        raise KeyboardInterrupt from None
+    except BaseException:
+        if _task.done() and not _task.cancelled():
+            _task.exception()  # seen: else asyncio logs "Task exception was never retrieved"
+        raise
+    finally:
+        _task = None
+
+
 def _evaluate(namespace: dict, expression: str, filename: str) -> dict:
     """An inline `py` value as prose shows it: str(), not repr()."""
     global _running, _pending
     _pending = False
     _running = True
     try:
-        result = {"text": str(eval(compile(expression, filename, "eval"), namespace))}
+        result = {"text": str(_run_code(expression, filename, "eval", namespace))}
     except BaseException as e:
         result = {"error": traceback.format_exception_only(e)[-1].strip()}
     _running = False

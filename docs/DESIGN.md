@@ -124,7 +124,15 @@ Comunicación con el servidor por un socket con el protocolo de `multiprocessing
    no cada fotograma. Las escrituras seguidas a un mismo flujo se guardan juntas. Un flujo
    que pasa de 4.000 líneas se queda con las 2.000 últimas, tras una línea "… N líneas
    anteriores omitidas" (en el editor y en la caché): un bucle que imprime mucho no pesa.
-4. Errores: traceback recortado a los frames del código del usuario, mostrado dentro del
+4. `await` en el nivel superior, como en Jupyter: el código se compila con
+   `ast.PyCF_ALLOW_TOP_LEVEL_AWAIT` y, si espera algo, corre en un bucle de eventos que el
+   worker conserva entre bloques (una sesión de `httpx` creada en un bloque sirve en el
+   siguiente). El código que no espera no lo toca, así que `asyncio.run()` sigue valiendo.
+   Vale también en las expresiones `py`. Escape con el bucle esperando cancela la tarea
+   (`call_soon_threadsafe`) en vez de lanzar la excepción entre dos pasos de asyncio, que
+   puede dejarlo roto; dentro de un paso se lanza `KeyboardInterrupt`, que asyncio deja
+   pasar.
+5. Errores: traceback recortado a los frames del código del usuario, mostrado dentro del
    bloque gris con un tono rojo apagado.
 
 ### 4.3 Protocolo de display

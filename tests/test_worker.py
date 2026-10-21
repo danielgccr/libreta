@@ -177,3 +177,29 @@ def test_project_environment(tmp_path):
         w.close()
     names = modules(doc.parent)
     assert "json" in names and "starlette" not in names
+
+
+def test_top_level_await(worker):
+    run(worker, "import asyncio\nasync def loop_of():\n    return asyncio.get_running_loop()")
+    assert run(worker, "x = await asyncio.sleep(0, result=21)\nx * 2") == [("text/plain", "42")]
+    run(worker, "first = await loop_of()")
+    assert run(worker, "(await loop_of()) is first") == [("text/plain", "True")]  # one loop
+    assert worker.inline(["await asyncio.sleep(0, result='sí')"], "") == {
+        "await asyncio.sleep(0, result='sí')": {"text": "sí"}
+    }
+    assert run(worker, "asyncio.run(asyncio.sleep(0, result=1))") == [("text/plain", "1")]
+
+
+def test_interrupt_await(worker):
+    run(worker, "import asyncio\nawait asyncio.sleep(0)")  # a loop already made: it once hung
+    items = []
+    code = "import asyncio\nticks = 0\nprint('ready')\nwhile True:\n"
+    code += "    ticks += 1\n    await asyncio.sleep(0.01)"
+    for item in worker.run(code, 1, ""):
+        items.append(item)
+        if item == ("stdout", "ready"):
+            worker.interrupt()
+    assert items[-1][0] == "error" and items[-1][1].endswith("KeyboardInterrupt\n")
+    [(_, before)] = run(worker, "ticks")
+    run(worker, "await asyncio.sleep(0.05)")  # the loop runs again: the old task must not
+    assert run(worker, "ticks") == [("text/plain", before)]
