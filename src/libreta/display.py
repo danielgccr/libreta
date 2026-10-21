@@ -1,6 +1,7 @@
 """How a block's results become output items: last expression, _repr_*_ protocol, streams."""
 
 import ast
+import base64
 import io
 from collections.abc import Callable
 
@@ -8,27 +9,40 @@ REPRS = [
     ("_repr_html_", "text/html"),
     ("_repr_svg_", "image/svg+xml"),
     ("_repr_png_", "image/png"),
+    ("_repr_jpeg_", "image/jpeg"),
+    ("_repr_latex_", "text/latex"),  # text in the editor, a formula in the export
     ("_repr_markdown_", "text/markdown"),  # shown as text in v1
 ]
 
 
 def represent(value: object) -> tuple[str, str | bytes]:
-    """The richest (mime, content) the value offers, falling back to repr()."""
+    """The richest (mime, content) the value offers, falling back to repr(). A
+    _repr_mimebundle_ (Altair, plotly, sympy...) answers first for each type."""
+    bundle = _call(value, "_repr_mimebundle_")
+    bundle = bundle if isinstance(bundle, dict) else {}
     for name, mime in REPRS:
-        # Looked up on the type: instance __getattr__ magic and classes themselves
-        # (pd.DataFrame, not a frame) must not answer.
-        method = getattr(type(value), name, None)
-        if not callable(method):
-            continue
-        try:
-            data = method(value)
-        except Exception:
-            continue
-        if isinstance(data, tuple):  # (data, metadata)
-            data = data[0]
+        data = bundle.get(mime)
+        if data is None:
+            data = _call(value, name)
+        if isinstance(data, str) and mime in ("image/png", "image/jpeg"):
+            data = base64.b64decode(data)  # binary data travels in base64 in bundles
         if isinstance(data, str | bytes):
             return mime, data
-    return "text/plain", repr(value)
+    plain = bundle.get("text/plain")
+    return "text/plain", plain if isinstance(plain, str) else repr(value)
+
+
+def _call(value: object, name: str) -> object:
+    # Looked up on the type: instance __getattr__ magic and classes themselves
+    # (pd.DataFrame, not a frame) must not answer.
+    method = getattr(type(value), name, None)
+    if not callable(method):
+        return None
+    try:
+        data = method(value)
+    except Exception:
+        return None
+    return data[0] if isinstance(data, tuple) else data  # (data, metadata)
 
 
 def split_last_expression(source: str, filename: str) -> tuple[ast.Module, ast.Expression | None]:

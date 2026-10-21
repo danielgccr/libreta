@@ -117,8 +117,14 @@ Comunicación con el servidor por pipe con mensajes serializados. Nada de kernel
 ### 4.3 Protocolo de display
 
 Para mostrar un valor, se prueba en este orden: `_repr_html_`, `_repr_svg_`, `_repr_png_`,
-`_repr_markdown_` (en v1 se muestra como texto), `repr()`. Con esto pandas, polars, plotly
-y similares funcionan sin integración específica.
+`_repr_jpeg_`, `_repr_latex_` (texto en el editor, fórmula en el export si va entre `$`),
+`_repr_markdown_` (en v1 se muestra como texto), `repr()`. Para cada tipo, lo que dé
+`_repr_mimebundle_` (Altair, plotly, sympy) va antes que el método suelto; su `text/plain`
+sustituye a `repr()`. Con esto pandas, polars, sympy y similares funcionan sin integración
+específica.
+
+`display(*objetos)` es un builtin del worker, como en Jupyter: muestra cada objeto en ese
+punto de la salida. Una variable `display` del usuario lo tapa.
 
 ### 4.4 matplotlib
 

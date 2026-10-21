@@ -78,6 +78,10 @@ def knit(path: Path) -> tuple[str, list[str]]:
                 parts.append(_fenced(content, "{=html}"))
             elif mime == "text/markdown":
                 parts.append(content.rstrip("\n") + "\n")
+            elif mime == "text/latex" and content.strip().startswith("$"):
+                parts.append(content.strip() + "\n")  # $...$ math: Pandoc renders it
+            elif mime == "text/latex":
+                parts.append(_fenced(content, "{.output}"))
             elif mime.startswith("image/"):
                 figures += 1
                 files.mkdir(exist_ok=True)

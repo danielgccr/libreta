@@ -194,6 +194,9 @@ pre.out {
 .out.error {
   color: var(--error);
 }
+.out.text-latex {
+  color: var(--hl-math); /* LaTeX source: rendered only in the export */
+}
 img.out {
   display: block;
   margin-inline: auto; /* centred like a figure in the printed page */

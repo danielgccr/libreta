@@ -56,3 +56,33 @@ def test_semicolon_silences():
     assert last("x ;  # quiet") is None
     assert last("'ñandú';") is None  # end_col_offset counts UTF-8 bytes
     assert last("x = 1; y") == "y"
+
+
+class Bundle:
+    def _repr_mimebundle_(self, include=None, exclude=None):
+        return {"text/plain": "Bundle()", "image/png": "iVBORw=="}, {}
+
+    def _repr_html_(self):
+        return "<b>html</b>"  # preferred to the bundle's png: the order is per type
+
+
+class Plain:
+    def _repr_mimebundle_(self, include=None, exclude=None):
+        return {"application/vnd.vegalite.v5+json": {}, "text/plain": "alt.Chart(...)"}
+
+
+class Latex:
+    def _repr_latex_(self):
+        return "$x^{2}$"
+
+
+def test_mimebundle_and_latex():
+    assert represent(Bundle()) == ("text/html", "<b>html</b>")
+    assert represent(Plain()) == ("text/plain", "alt.Chart(...)")
+    assert represent(Latex()) == ("text/latex", "$x^{2}$")
+
+    class Png:
+        def _repr_mimebundle_(self, include=None, exclude=None):
+            return {"image/png": "iVBORw=="}
+
+    assert represent(Png()) == ("image/png", b"\x89PNG")

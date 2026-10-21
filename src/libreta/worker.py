@@ -5,6 +5,7 @@ The parent talks to it over a multiprocessing pipe. A block's output is streamed
 ``stdout``, ``stderr`` and ``error`` (a formatted traceback).
 """
 
+import builtins
 import linecache
 import multiprocessing
 import os
@@ -97,6 +98,14 @@ def emit(mime: str, content: str | bytes) -> None:
     _send(("output", mime, content))
 
 
+def show(*objects: object) -> None:
+    """Jupyter's display(), a builtin in the worker: each object shown where it is called,
+    as a block's last expression is."""
+    for obj in objects:
+        if obj is not None:
+            emit(*display.represent(obj))
+
+
 def _send(message: tuple) -> None:
     global _sending, _pending
     main = threading.current_thread() is threading.main_thread()
@@ -132,6 +141,7 @@ def _main(conn, filename: str) -> None:
     # subprocesses) goes to the parent's terminal. Redirect the fds if that matters.
     sys.stdout = display.Stream("stdout", emit)
     sys.stderr = display.Stream("stderr", emit)
+    builtins.display = show  # a builtin: a user's own `display` shadows it
     namespace = {"__name__": "__main__"}
     while True:
         try:

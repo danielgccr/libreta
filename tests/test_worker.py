@@ -137,3 +137,15 @@ def test_assist(worker):
     assert sig["name"] == "divmod" and sig["index"] == 1 and len(sig["params"]) == 2
     assert worker.assist("complete", "x", 5, 0) == []  # jedi raises: no help, no error
     assert run(worker, "1") == [("text/plain", "1")]
+
+
+def test_display_builtin(worker):
+    code = "for i in range(2):\n    display(i, None)\nprint('fin')\ndisplay = 5\ndisplay"
+    assert run(worker, code) == [
+        ("text/plain", "0"),
+        ("text/plain", "1"),
+        ("stdout", "fin"),
+        ("stdout", "\n"),
+        ("text/plain", "5"),  # the user's own display shadows the builtin
+    ]
+    run(worker, "del display")
