@@ -10,7 +10,7 @@ import subprocess
 import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote
 
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
@@ -283,11 +283,16 @@ def create_app(root: Path, token: str) -> Starlette:
     root = Path(os.path.abspath(root))
     sessions: dict[Path, Session] = {}
 
-    def document(request: Request) -> tuple[Path, Session]:
-        """The document of the URL; only .md files under root (no way out with "..")."""
-        path = Path(os.path.normpath(root / request.path_params["doc"]))
+    def markdown(rel: str) -> Path:
+        """Only .md files under root (no way out with "..")."""
+        path = Path(os.path.normpath(root / rel))
         if path.suffix != ".md" or not path.is_relative_to(root):
             raise HTTPException(404)
+        return path
+
+    def document(request: Request) -> tuple[Path, Session]:
+        """The document of the URL."""
+        path = markdown(request.path_params["doc"])
         if path not in sessions:
             sessions[path] = Session(path)
         return path, sessions[path]
@@ -311,6 +316,17 @@ def create_app(root: Path, token: str) -> Starlette:
         ]
         context = {"root": root.name or str(root), "files": files}
         return templates.TemplateResponse(request, "index.html", context)
+
+    async def new(request: Request):
+        """The index's form: create the document `name` (".md" optional, folders too) and
+        open it. An existing one just opens."""
+        name = parse_qs((await request.body()).decode()).get("name", [""])[0].strip()
+        if not name:
+            raise HTTPException(400)
+        path = markdown(name if name.endswith(".md") else name + ".md")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+        return RedirectResponse("/edit/" + quote(path.relative_to(root).as_posix()), 303)
 
     async def editor(request: Request):
         path, session = document(request)
@@ -392,6 +408,7 @@ def create_app(root: Path, token: str) -> Starlette:
     return Starlette(
         routes=[
             Route("/", index),
+            Route("/new", new, methods=["POST"]),
             Route(f"{doc}/doc", put_doc, methods=["PUT"]),
             Route(f"{doc}/run", run, methods=["POST"]),
             Route(f"{doc}/complete", assist, methods=["POST"]),

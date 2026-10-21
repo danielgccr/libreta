@@ -360,3 +360,18 @@ def test_one_worker_at_a_time(tmp_path):
     finally:
         for doc in ["a.md", "b.md"]:
             get(method="POST", path=f"/edit/{doc}/restart", cookie="secret", app=doc_app)
+
+
+def test_new_document(tmp_path):
+    doc_app = create_app(tmp_path, "secret")
+
+    def new(body):
+        return get(method="POST", path="/new", body=body, cookie="secret", app=doc_app)
+
+    status, headers, _ = new(b"name=notas%2Fprimer+borrador")
+    assert status == 303 and headers[b"location"] == b"/edit/notas/primer%20borrador.md"
+    assert (tmp_path / "notas/primer borrador.md").read_text() == ""
+    (tmp_path / "b.md").write_text("Hola\n")
+    assert new(b"name=b.md")[0] == 303 and (tmp_path / "b.md").read_text() == "Hola\n"
+    assert new(b"name=+")[0] == 400
+    assert new(b"name=..%2Ffuera")[0] == 404 and not (tmp_path.parent / "fuera.md").exists()

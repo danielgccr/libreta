@@ -337,6 +337,9 @@ Endpoints:
 - `GET /` la lista de los `.md` de la raíz y sus subcarpetas (sin carpetas ocultas,
   `node_modules` ni `.knit.md`), del más reciente al más antiguo: la ruta a la izquierda,
   la fecha de la última edición a la derecha ("hoy, 20:41", "21 oct", "3 mar 2025").
+  Encima, una fila para crear un documento: se escribe su nombre (`.md` opcional, con
+  carpetas si se quiere) y `POST /new` crea el fichero vacío y abre el editor; si ya
+  existe, solo lo abre.
 - `GET /edit/<ruta>` el editor del documento. Las demás llamadas cuelgan de esa misma URL
   (`/edit/<ruta>/run`...), así que `api.js` solo necesita `location.pathname`. Encima del
   título, la ruta del documento enlaza a la lista.

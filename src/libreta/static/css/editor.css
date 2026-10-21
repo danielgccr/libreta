@@ -100,6 +100,43 @@ header.front > .title {
 main.index {
   padding-block-end: 3lh;
 }
+/* New document: a row above the list, typed into like a name. */
+main.index .new {
+  display: flex;
+  align-items: baseline;
+  gap: 2ch;
+  border-block-end: 1px solid var(--border);
+}
+main.index .new:focus-within {
+  border-color: var(--accent);
+}
+main.index .new input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5lh 0;
+  font: inherit;
+  color: var(--text-strong);
+  background: none;
+  border: 0;
+  outline: none; /* the row's border shows the focus */
+}
+main.index .new input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+main.index .new button {
+  padding: 0;
+  font: inherit;
+  font-size: 0.875em;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+main.index .new button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 main.index ol {
   list-style: none;
   margin: 0;
