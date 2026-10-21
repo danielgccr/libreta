@@ -413,6 +413,19 @@ Endpoints:
   informa de errores con línea del `.md`. Código de salida distinto de cero si falla algún
   bloque. Pensado para terminal, cron y CI. `-p clave=valor` da otro valor a un parámetro
   (§3); también en `export`.
+- `libreta purl doc.md` escribe en stdout el documento como script de Python, como
+  `knitr::purl`: el código de los bloques en orden, la prosa como comentarios (`# `), el
+  título como primera línea y los parámetros (§3) como `params = {...}`. Los imports de
+  primer nivel que ocupan sus propias líneas suben arriba, sin repetir y agrupados como
+  isort/ruff (`__future__`, biblioteca estándar, paquetes instalados, módulos de la
+  carpeta del documento); los que van dentro de un `if` o un `try` se quedan donde están.
+  Orden estricto: antes, comprueba en el documento tal cual (no en el script) que cada
+  nombre que usa el nivel superior está definido más arriba (el editor puede ocultarlo:
+  ejecuciones fuera de orden, una versión vieja de un bloque que dejó un nombre). Si no,
+  no hay script: sale con 1 y las líneas del `.md` en stderr. `display()` cuenta como no
+  definido: solo existe en el worker. Límites: los cuerpos de funciones no se siguen (una
+  función que usa un nombre definido después de llamarla pasa) y todas las ramas cuentan
+  como ejecutadas.
 - `libreta export doc.md [--to html|pdf] [--css ...]` genera el Markdown tejido (§10) y, si
   Pandoc está instalado, lo convierte. Si a la caché le falta algo, ejecuta antes el
   documento entero; a diferencia de `run`, sigue tras un error, que queda en el documento

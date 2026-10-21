@@ -47,6 +47,7 @@ libreta edit report.md      # open a document (if it does not exist, saving crea
 libreta edit folder/        # list the .md files in another folder
 libreta run report.md       # run it top to bottom, no browser
 libreta export report.md    # report.html (with --to pdf, report.pdf)
+libreta purl report.md      # the document as a Python script, on stdout
 ```
 
 The server listens only on `127.0.0.1` and requires a random token in the URL, since it
@@ -123,6 +124,18 @@ The editor runs with these values; `libreta run` and `libreta export` take other
 
 Runs the document in a fresh process, updates the cache and reports errors with their line
 in the `.md`. It exits non-zero if any block fails, so it works in cron or CI.
+
+### `libreta purl`
+
+```sh
+libreta purl report.md > report.py
+```
+
+The document as a Python script, as knitr's `purl`: the blocks' code in order, the prose as
+comments, and every top-level import gathered at the top, sorted as isort does. A script
+runs top to bottom, so first it checks the document does too: a name used above the block
+that defines it (easy to miss when blocks ran out of order in the editor) is reported with
+its line, and no script is written.
 
 ### `libreta export`
 

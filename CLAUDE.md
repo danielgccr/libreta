@@ -43,6 +43,7 @@ el formato de fichero o la caché:
 - Editor: `uv run libreta` (lista de documentos) o `uv run libreta edit ejemplos/demo.md`
 - Ejecución sin navegador: `uv run libreta run ejemplos/demo.md`
 - Exportación: `uv run libreta export ejemplos/demo.md [--to pdf]`
+- Script de Python: `uv run libreta purl ejemplos/demo.md`
 - Tests: `uv run pytest`
 - Lint y formato: `uv run ruff check . && uv run ruff format .`
 
@@ -50,7 +51,7 @@ el formato de fichero o la caché:
 
 ```
 src/libreta/
-  cli.py         # edit | run | export
+  cli.py         # edit | run | export | purl
   app.py         # Starlette: rutas, SSE, plantillas
   document.py    # .md <-> lista de bloques (parser y serializador)
   worker.py      # proceso hijo: namespace, exec/eval, interrupción, completado (jedi)
@@ -58,6 +59,7 @@ src/libreta/
   _mpl.py        # backend de matplotlib propio (MPLBACKEND=module://libreta._mpl)
   cache.py       # hashes encadenados, lectura/escritura de salidas
   knit.py        # Markdown "tejido" + llamada opcional a pandoc
+  purl.py        # el documento como script de Python (libreta purl)
   templates/
   static/
     js/          # editor.js, blocks.js, keys.js, py-highlight.js, md-highlight.js, complete.js, api.js

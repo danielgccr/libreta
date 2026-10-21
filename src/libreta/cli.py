@@ -22,6 +22,7 @@ from libreta.document import (
     split_front_matter,
 )
 from libreta.knit import complete, knit, remove_figures
+from libreta.purl import purl as to_script
 from libreta.worker import Worker, environment
 
 HERE = Path(__file__).parent
@@ -48,6 +49,8 @@ def main(argv: list[str] | None = None) -> int:
             metavar="KEY=VALUE",
             help="a value for one of the document's params",
         )
+    purl_parser = commands.add_parser("purl", help="the document as a Python script")
+    purl_parser.add_argument("path", type=Path)
     export_parser.add_argument("--to", choices=["html", "pdf"], default="html")
     export_parser.add_argument(
         "--css", type=Path, action="append", default=[], help="extra style sheet (HTML)"
@@ -60,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
         return run(args.path, overrides=args.param)
     if args.command == "export":
         return export(args.path, args.to, args.css, args.keep_md, args.param)
+    if args.command == "purl":
+        return purl(args.path)
     if args.command is None or args.path.is_dir():
         serve(args.path if args.command else Path.cwd())
     elif args.path.suffix != ".md":
@@ -141,6 +146,19 @@ def run(path: Path, keep_going: bool = False, overrides: Sequence[str] = ()) -> 
     finally:
         worker.close()
     return status
+
+
+def purl(path: Path) -> int:
+    """Print the document as a Python script (DESIGN §8); or, if it does not run top to
+    bottom, why not, with the lines of the .md (exit status 1)."""
+    if not path.is_file():
+        print(f"libreta: no existe {path}", file=sys.stderr)
+        return 2
+    script, problems = to_script(path.read_text(encoding="utf-8"), path.parent)
+    for problem in problems:
+        print(f"libreta: {path}, {problem}", file=sys.stderr)
+    sys.stdout.write(script)
+    return 1 if problems else 0
 
 
 def export(
