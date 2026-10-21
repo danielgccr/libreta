@@ -62,7 +62,7 @@ class Worker:
         while self.unfinished:
             try:
                 message = self.conn.recv()
-            except EOFError:
+            except (EOFError, ConnectionResetError):  # the child died (reset: at startup)
                 self.unfinished = False
                 yield "error", "El proceso del worker ha terminado.\n"
                 return
