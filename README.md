@@ -85,6 +85,9 @@ the document; the date is set on save.
 - The document runs top to bottom, as in knitr: if you run block 5 and block 2 has
   changed, libreta restarts Python and runs 1 to 5. If only block 5 changed, it reruns it
   on the current state. Later blocks are marked as stale.
+- Restarting does not mean waiting again for the slow blocks: on Linux, libreta keeps
+  snapshots of the Python process along the way (`fork`, copy-on-write) and starts from
+  the latest one before the change, so editing block 2 reruns from block 2.
 - A block's last expression is displayed (unless it ends in `;`). Any object with
   `_repr_html_`, `_repr_png_`, `_repr_svg_`… displays properly: pandas and polars
   DataFrames, sympy, Altair. `display(obj)` shows something mid-block.

@@ -10,6 +10,7 @@ import secrets
 import shutil
 import subprocess
 import threading
+import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from string import Template
@@ -44,7 +45,7 @@ from libreta.document import (
     stamp,
 )
 from libreta.i18n import LANG, MESSAGES, tr
-from libreta.worker import Worker, environment
+from libreta.worker import SLOW, Snapshot, Worker, environment
 
 HERE = Path(__file__).parent
 COOKIE = "libreta_token"
@@ -163,17 +164,28 @@ def save(path: Path, text: str) -> None:
     os.replace(tmp, target)
 
 
+# A snapshot of the worker each time this much running has piled up since the last one, so
+# a rerun from the top (DESIGN §4.5) repeats at most about that much of what came before.
+SNAPSHOT_EVERY = SLOW
+# ponytail: a cap on processes, not on memory (copy-on-write: each keeps the objects the
+# worker has since replaced); weigh them by RSS if big data makes that bite.
+MAX_SNAPSHOTS = 8
+
+
 class Session:
     """The document's worker: created on first use, one block running at a time.
 
     `state` is (before, after): the worker's namespace reflects the chain up to hash
-    `after`, reached by running one last block on top of `before` (DESIGN §4.5)."""
+    `after`, reached by running one last block on top of `before` (DESIGN §4.5).
+    `snapshots`: frozen copies of the worker by the state they hold, to restart from."""
 
     def __init__(self, path: Path):
         self.path = path
         self.cache = Cache(path)
         self.worker: Worker | None = None
         self.state = (GENESIS, GENESIS)
+        self.snapshots: dict[str, Snapshot] = {}
+        self.unsaved = 0.0  # seconds run since the last snapshot
         self.lock = threading.Lock()  # held while a block runs; later runs queue on it
         self.interrupted = False  # Escape during the current run
 
@@ -202,23 +214,26 @@ class Session:
         with self.lock:
             self.interrupted = False
             self.cache.prune(set(keys))
+            for key in self.snapshots.keys() - set(keys):
+                self.snapshots.pop(key).close()
             alive = self.worker is not None and self.worker.alive()
             if inline and alive and self.state[1] == keys[n] and not self.cache.stale(keys[n]):
                 yield from evaluate(n)  # already there: only evaluate
                 return
             # Same blocks before it, reading the same data: run on the current state (even
             # over an older version of itself, impure and accepted). Else, as knitr: a new
-            # worker runs 1..N.
+            # worker runs 1..N, or one forked from the latest snapshot on the way, from there.
             fresh = (
                 not alive
                 or target < 0
                 or keys[target] not in self.state
                 or self.cache.stale(keys[target])
             )
+            first = target
             if fresh:
-                self._new_worker(params)
-                yield from evaluate(0)
-            for i in range(0 if fresh else target, target + 1):
+                first = self._restore(keys, n, params)
+                yield from evaluate(first)
+            for i in range(first, target + 1):
                 # An error in an earlier block does not stop the rest (the editor is
                 # pragmatic, `libreta run` is not); Escape does.
                 if self.interrupted:
@@ -229,6 +244,7 @@ class Session:
                 yield _ndjson({"start": block.line})
                 self.state = (keys[i], keys[i + 1])
                 items = []
+                start = time.monotonic()
                 for mime, content in self.worker.run(block.code, block.line + 1, text):
                     items.append((mime, content))
                     yield _ndjson(to_json(mime, content))
@@ -236,6 +252,7 @@ class Session:
                 self.cache.save(keys[i + 1], items, self.worker.reads)
                 if not self.interrupted:
                     yield from evaluate(i + 1)
+                    self._snapshot(keys, i + 1, time.monotonic() - start)
 
     def assist(self, kind: str, code: str, line: int, column: int, params: dict) -> list[dict]:
         """Completions or signatures from jedi in the worker (see Worker.assist)."""
@@ -248,12 +265,58 @@ class Session:
         finally:
             self.lock.release()
 
+    def _snapshot(self, keys: list[str], i: int, seconds: float) -> None:
+        """Freeze the worker, now at state keys[i], if enough has run since the last time;
+        past MAX_SNAPSHOTS, the earliest one in the document goes."""
+        self.unsaved += seconds
+        if self.unsaved < SNAPSHOT_EVERY or keys[i] in self.snapshots:
+            return
+        if (snapshot := self.worker.snapshot()) is None:  # it cannot: no point asking again
+            self.unsaved = float("-inf")
+            return
+        self.snapshots[keys[i]] = snapshot
+        self.unsaved = 0.0
+        if len(self.snapshots) > MAX_SNAPSHOTS:
+            self.snapshots.pop(min(self.snapshots, key=keys.index)).close()
+
+    def _restore(self, keys: list[str], n: int, params: dict) -> int:
+        """A worker at the latest state up to keys[n] with a snapshot whose data has not
+        changed, or a new one at the start. Returns that state's index in `keys`."""
+        for j in range(n, 0, -1):
+            snapshot = self.snapshots.get(keys[j])
+            if snapshot is None or self.cache.stale(keys[j]):
+                continue
+            if self.worker is not None:
+                self.worker.kill()
+                self.worker.close()
+            try:
+                self.worker = snapshot.fork()
+            except (OSError, EOFError):  # gone: killed, out of memory
+                self.worker = None
+                del self.snapshots[keys[j]]
+                continue
+            self.state = (keys[j], keys[j])
+            self.unsaved = 0.0
+            return j
+        self._new_worker(params)
+        return 0
+
     def _new_worker(self, params: dict) -> None:
-        if self.worker is not None:
-            self.worker.close()
+        self._discard()
         self.worker = Worker(self.path, params)
         start = states([], params)[0]
         self.state = (start, start)
+        self.unsaved = 0.0
+
+    def _discard(self) -> None:
+        """The worker and its snapshots, killed: none of them runs the user's atexit."""
+        if self.worker is not None:
+            self.worker.kill(group=True)
+            self.worker.close()
+            self.worker = None
+        for snapshot in self.snapshots.values():
+            snapshot.close()
+        self.snapshots.clear()
 
     def interrupt(self) -> None:
         self.interrupted = True
@@ -261,15 +324,13 @@ class Session:
             self.worker.interrupt()
 
     def restart(self) -> None:
-        """Kill the worker (a running block ends at once); the next run starts a fresh one."""
-        worker = self.worker
-        if worker is not None:
-            worker.process.kill()
+        """Kill the worker and its snapshots (a running block ends at once); the next run
+        starts a fresh one."""
+        if (worker := self.worker) is not None:
+            worker.kill(group=True)
         with self.lock:
-            if worker is not None:
-                worker.close()
-            if self.worker is worker:
-                self.worker = None
+            if self.worker is worker:  # not one a queued run has made meanwhile
+                self._discard()
 
 
 def _ndjson(item: dict) -> str:

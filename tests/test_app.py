@@ -2,11 +2,14 @@ import asyncio
 import json
 import os
 import random
+import sys
 from datetime import date, datetime
 from pathlib import Path
 
+import pytest
 from test_document import PIECES
 
+from libreta import app as app_module
 from libreta.app import Session, create_app, editor_blocks, markdown_files, modules, save, when
 from libreta.document import parse
 
@@ -469,3 +472,28 @@ def test_put_doc_refuses_a_file_changed_on_disk(tmp_path):
     path.unlink()  # deleted behind the editor: also a change
     assert put(mtime=loaded)[0] == 409 and not path.exists()
     assert put(force=True)[0] == 200 and path.read_text() == "mío\n"
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="snapshots are Linux only")
+def test_a_rerun_starts_from_the_latest_snapshot(tmp_path, monkeypatch):
+    monkeypatch.setattr(app_module, "SNAPSHOT_EVERY", 0)  # one after every block
+    session = Session(tmp_path / "doc.md")
+    (tmp_path / "datos.txt").write_text("1")
+
+    def run(codes, n):
+        """The blocks that ran (by index) and the last item."""
+        text = "\n".join(f"```python\n{code}\n```\n" for code in codes)
+        lines = [b.line for b in parse(text) if b.kind == "python"]
+        out = [json.loads(line) for line in session.run(text, parse(text), n)]
+        return [lines.index(o["start"]) for o in out if "start" in o], out[-1].get("content")
+
+    codes = ["x = int(open('datos.txt').read())", "y = x + 1", "y + 1"]
+    try:
+        assert run(codes, 2) == ([0, 1, 2], "3")
+        codes[1] = "y = x + 10"
+        assert run(codes, 2) == ([1, 2], "12")  # from the snapshot after block 1
+        assert run(codes, 0) == ([0], None)  # back up: none before it, a new worker
+        (tmp_path / "datos.txt").write_text("100")
+        assert run(codes, 2) == ([0, 1, 2], "111")  # the snapshot read the old data
+    finally:
+        session.restart()

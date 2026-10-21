@@ -1,3 +1,5 @@
+import sys
+import time
 import venv
 
 import pytest
@@ -247,3 +249,28 @@ def test_slow_blocks_say_how_long(worker, monkeypatch):
         "2 min",
         "2 h 5 min",
     ]
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="snapshots are Linux only")
+def test_snapshots_fork_workers_from_a_frozen_state(tmp_path):
+    w = Worker(tmp_path / "doc.md")
+    try:
+        run(w, "x = 1")
+        snapshot = w.snapshot()
+        run(w, "x = 2")
+        first, second = snapshot.fork(), snapshot.fork()  # it stays for the next one
+        assert run(first, "x += 10; x") == [("text/plain", "11")]
+        assert run(second, "x") == [("text/plain", "1")]
+        assert run(w, "x") == [("text/plain", "2")]
+        assert run(second, "import os; os.getpid()") == [("text/plain", str(second.pid))]
+        assert run(first, "async def f(): pass\nawait f()") == []
+        assert first.snapshot() is None  # its event loop would be shared
+        w.kill(group=True)  # the snapshot and its workers too
+        w.close()
+        time.sleep(0.2)
+        assert not first.alive() and not second.alive()
+        with pytest.raises((OSError, EOFError)):
+            snapshot.fork()
+    finally:
+        w.kill(group=True)
+        w.close()

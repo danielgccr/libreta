@@ -9,6 +9,7 @@ items, where mime is a real MIME type for displayed values or one of ``stdout``,
 
 import ast
 import builtins
+import contextlib
 import functools
 import importlib.util
 import inspect
@@ -24,8 +25,10 @@ import sys
 import threading
 import time
 import traceback
+import warnings
 from collections.abc import Iterator
 from multiprocessing.connection import Connection
+from multiprocessing.reduction import recv_handle, send_handle
 from pathlib import Path
 
 from libreta import display
@@ -111,13 +114,32 @@ class Worker:
                 stdin=subprocess.DEVNULL,
                 start_new_session=True,  # Ctrl+C in the server's terminal is not for it
             )
-        self.conn = Connection(parent.detach())
+        self._attach(Connection(parent.detach()), self.process.pid, self.process.pid)
+
+    @classmethod
+    def _forked(cls, conn: Connection, group: int) -> "Worker":
+        """The worker a snapshot has just forked, which says its pid first."""
+        worker = cls.__new__(cls)
+        worker.process = None  # not our child: its snapshot reaps it
+        worker._attach(conn, conn.recv(), group)
+        return worker
+
+    def _attach(self, conn: Connection, pid: int, group: int) -> None:
+        self.conn = conn
+        self.pid = pid
+        self.group = group  # the first worker's session: its snapshots and their forks too
         self.unfinished = False  # a run whose output was not read to the end
         # The files the namespace depends on, as of the last run: {path: [mtime_ns, size]}.
         self.reads: dict[str, list[int]] = {}
 
     def alive(self) -> bool:
-        return self.process.poll() is None
+        if self.process is not None:
+            return self.process.poll() is None
+        try:
+            os.kill(self.pid, 0)
+        except ProcessLookupError:
+            return False
+        return True
 
     def run(self, code: str, lineno: int, source: str) -> Iterator[tuple[str, str | bytes]]:
         """Execute `code`, whose first line is line `lineno` of the document `source`.
@@ -146,11 +168,27 @@ class Worker:
                 result = content
         return result
 
-    def _request(self, message: tuple) -> Iterator[tuple[str, str | bytes]]:
+    def snapshot(self) -> "Snapshot | None":
+        """A frozen copy of the worker's process, with its namespace as it is now (DESIGN
+        §4.5), or None where that cannot be done (see _forkable)."""
+        parent, child = socket.socketpair()
+        with child:
+            done = dict(self._request(("snapshot", ""), child.fileno()))
+        if done.get("snapshot"):
+            return Snapshot(Connection(parent.detach()), self.group)
+        parent.close()
+        return None
+
+    def _request(self, message: tuple, fd: int | None = None) -> Iterator[tuple[str, str | bytes]]:
         for _ in self._messages():  # leftovers of an abandoned run (client went away)
             pass
-        self.conn.send(message)
         self.unfinished = True
+        try:
+            self.conn.send(message)
+            if fd is not None:
+                send_handle(self.conn, fd, None)
+        except OSError:  # the child died: _messages says so
+            pass
         yield from self._messages()
 
     def _messages(self) -> Iterator[tuple[str, str | bytes]]:
@@ -170,15 +208,47 @@ class Worker:
             yield message[1], message[2]
 
     def interrupt(self) -> None:
-        os.kill(self.process.pid, signal.SIGINT)
+        os.kill(self.pid, signal.SIGINT)
+
+    def kill(self, group: bool = False) -> None:
+        """SIGKILL: no atexit handler or finalizer of the user's runs in a process whose
+        state snapshots share (a TemporaryDirectory would vanish under them). With `group`,
+        its snapshots and the workers forked from them go too. close() still has to follow."""
+        with contextlib.suppress(ProcessLookupError):
+            if group:
+                os.killpg(self.group, signal.SIGKILL)
+            else:
+                os.kill(self.pid, signal.SIGKILL)
 
     def close(self) -> None:
         self.conn.close()  # the child sees EOF and exits
+        if self.process is None:
+            return
         try:
             self.process.wait(1)
         except subprocess.TimeoutExpired:
             self.process.kill()
             self.process.wait()
+
+
+class Snapshot:
+    """A process kept asleep with a worker's namespace as it was after some block: each
+    fork() makes a new worker from that state, and the snapshot stays for the next one."""
+
+    def __init__(self, conn: Connection, group: int):
+        self.conn = conn
+        self.group = group
+
+    def fork(self) -> Worker:
+        """Raises OSError or EOFError if the snapshot is gone (killed, out of memory)."""
+        parent, child = socket.socketpair()
+        with child:
+            self.conn.send(("fork",))
+            send_handle(self.conn, child.fileno(), None)
+        return Worker._forked(Connection(parent.detach()), self.group)
+
+    def close(self) -> None:
+        self.conn.close()  # it sees EOF and exits
 
 
 # Child side. SIGINT raises KeyboardInterrupt only while a block runs, and never while the
@@ -271,6 +341,56 @@ def _literals(source: str, directory: str) -> list[str]:
     ]
 
 
+def _forkable() -> bool:
+    """Whether a snapshot of this process would work as the process itself. Linux only:
+    on macOS, fork without exec breaks system frameworks (a proxy lookup from urllib is
+    enough). Not once a block has awaited: the event loop's epoll and self-pipe would be
+    shared by the snapshot and every worker forked from it.
+    ponytail: threads do not survive the fork (a block's background thread is gone in the
+    forked workers), nor does CUDA; Ctrl+Shift+F10 gives a clean worker."""
+    return sys.platform == "linux" and _loop is None
+
+
+def _snapshot(fd: int) -> bool | None:
+    """Fork the snapshot, which talks over `fd`. Returns in this process whether it did;
+    in the forked workers, from _freeze, None."""
+    if not _forkable():
+        os.close(fd)
+        return False
+    with warnings.catch_warnings():  # "This process is multi-threaded, use of fork()..."
+        warnings.simplefilter("ignore", DeprecationWarning)
+        pid = os.fork()
+    if pid:
+        os.close(fd)
+        return True
+    _freeze(fd)
+    return None
+
+
+def _freeze(fd: int) -> None:
+    """The snapshot's life: sleep, and on each request fork a worker from this state. It
+    returns only in such a worker, with _conn its own connection; the snapshot itself exits
+    when its connection closes, with os._exit: no atexit or finalizer of the user's."""
+    global _conn, _lock
+    _conn.close()  # the worker's: this process' copy only
+    _lock = threading.Lock()  # a thread may have held it at the fork
+    own = Connection(fd)
+    signal.signal(signal.SIGCHLD, signal.SIG_IGN)  # its workers are reaped as they end
+    while True:
+        try:
+            own.recv()
+            fd = recv_handle(own)
+        except (EOFError, OSError):
+            os._exit(0)
+        if os.fork() == 0:
+            signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+            own.close()
+            _conn = Connection(fd)
+            _conn.send(os.getpid())
+            return
+        os.close(fd)
+
+
 def _main(conn, filename: str, params: str) -> None:
     global _conn, _running
     _conn = conn
@@ -291,7 +411,7 @@ def _main(conn, filename: str, params: str) -> None:
         namespace["params"] = params
     while True:
         try:
-            kind, *args, source = conn.recv()
+            kind, *args, source = _conn.recv()  # _conn: a forked worker has its own
         except EOFError:
             return
         # Tracebacks quote the document being edited, not the file on disk.
@@ -306,6 +426,11 @@ def _main(conn, filename: str, params: str) -> None:
                 values = {e: _evaluate(namespace, e, filename) for e in args[0]}
                 _send(("output", "values", values))
                 _send(("output", "reads", _reads(directory, filename)))
+            elif kind == "snapshot":
+                done = _snapshot(recv_handle(_conn))
+                if done is None:  # a worker forked from the snapshot: a new connection
+                    continue
+                _send(("output", "snapshot", done))
             else:
                 _send(("output", "assist", _assist(kind, namespace, *args)))
         except KeyboardInterrupt:  # landed between the user's code and our bookkeeping

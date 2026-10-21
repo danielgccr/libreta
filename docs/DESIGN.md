@@ -107,7 +107,9 @@ Comunicación con el servidor por un socket con el protocolo de `multiprocessing
   módulos importables del editor (§6.3) se pide a ese mismo Python. Solo POSIX.
 
 - Interrupción: SIGINT al worker (`KeyboardInterrupt` dentro del bloque en curso).
-- Reinicio: matar y crear un worker nuevo con namespace vacío.
+- Reinicio: matar y crear un worker nuevo con namespace vacío. Se mata todo su grupo de
+  procesos (nace con sesión propia): las instantáneas de §4.5, los workers que salen de
+  ellas y los subprocesos que dejara el código del usuario.
 - Un solo worker a la vez. Nace la primera vez que un documento ejecuta código o pide
   completado (abrir un documento o la lista no arranca ninguno). Cuando otro documento lo
   hace, el worker del anterior se cierra; y cuando la página del documento se va (pestaña
@@ -187,6 +189,27 @@ sobre el estado que dejan los anteriores.
   última ejecución (o los datos que leyeron, §5), se reinicia el worker y se ejecuta 1..N.
   Si solo ha cambiado el propio bloque N, se reejecuta sobre el estado actual (impuro,
   como en Jupyter, y aceptado).
+- Instantáneas, para que reiniciar no sea volver a esperar a los bloques caros: cada vez
+  que el worker acumula 2 s de ejecución desde la última, al acabar un bloque hace `fork()`
+  y el hijo se queda dormido con el namespace de ese punto de la cadena (copy-on-write: no
+  copia memoria hasta que el worker la cambia). Para reiniciar se busca la instantánea más
+  avanzada hasta el bloque N cuyos datos (§5) no hayan cambiado; ella hace `fork()` de
+  nuevo, el nieto pasa a ser el worker y solo se ejecutan los bloques desde ese punto. La
+  instantánea sigue ahí para la siguiente vez. Si no hay ninguna, worker nuevo y 1..N.
+  - Cada una tiene su propio socket con el servidor (un `socketpair` cuyo extremo viaja
+    con `multiprocessing.reduction.send_handle`). Las que se salen de la cadena se
+    cierran; como mucho hay 8, y sobrando se va la más temprana del documento.
+  - Los workers que se descartan mueren con SIGKILL y las instantáneas salen con
+    `os._exit`: ningún `atexit` ni finalizador del usuario corre en un proceso cuyo estado
+    comparten otros (un `TemporaryDirectory` desaparecería bajo ellos).
+  - Solo Linux: en macOS, `fork` sin `exec` rompe frameworks del sistema (basta una
+    consulta de proxies de urllib). Y ninguna tras un `await` de nivel superior (§4.2):
+    el epoll y el self-pipe del bucle de eventos quedarían compartidos.
+  - Límites: los hilos del usuario no pasan al `fork` (un hilo de fondo que arrancó un
+    bloque no existe en el worker que sale de la instantánea), CUDA no sobrevive a él, y
+    las conexiones abiertas (una base de datos, un socket) se comparten con el proceso
+    del que vienen. Ctrl+Shift+F10 da siempre un worker limpio. `libreta run` no las usa:
+    ejecuta una vez de arriba abajo.
 - Los bloques posteriores a uno modificado o reejecutado se marcan como obsoletos. Cada
   uno dice por qué al pasar por encima de su salida (`title`) y al lector de pantalla
   (`aria-description`): "Ha cambiado su código", "Ha cambiado o se ha vuelto a ejecutar un
@@ -558,5 +581,3 @@ Cada hito termina con tests en verde y, si toca frontend, pasos de prueba manual
 
 - Servidor con la biblioteca estándar en vez de Starlette y uvicorn: ver
   `docs/servidor-stdlib.md`.
-- Optimización futura del reinicio en §4.5: snapshots del worker con `os.fork` tras cada
-  bloque (copy-on-write, solo Linux/macOS) para no reejecutar bloques caros.
