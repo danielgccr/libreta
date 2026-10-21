@@ -91,4 +91,5 @@ docs/DESIGN.md
 
 ## Estado
 
-Hito en curso: M7. Actualiza esta línea al cerrar cada hito.
+Hoja de ruta de DESIGN.md completa (M0–M7): v1 terminada. Ahora, mejoras sobre la marcha,
+cada una con sus tests, su commit y su nota en DESIGN.md.
