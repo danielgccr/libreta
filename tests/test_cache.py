@@ -1,4 +1,4 @@
-from libreta.cache import Cache, chain
+from libreta.cache import GENESIS, Cache, chain, states
 
 
 def test_chain_invalidates_from_the_changed_block_on():
@@ -64,3 +64,10 @@ def test_stale_when_a_file_read_changes(tmp_path):
     assert cache.stale(h1)
     cache.prune({h2})
     assert not (cache.dir / f"{h1}-reads.json").exists()
+
+
+def test_params_start_another_chain():
+    assert states([], None) == states([], {}) == [GENESIS]
+    a, b = states(["x"], {"mes": 9}), states(["x"], {"mes": 10})
+    assert a[0] != GENESIS and a[0] != b[0] and a[1] != b[1]
+    assert states(["x"], {"a": 1, "b": 2}) == states(["x"], {"b": 2, "a": 1})

@@ -59,3 +59,15 @@ def test_export_missing_css(tmp_path, capsys):
     assert main(["export", str(path), "--css", str(tmp_path / "mio.css")]) == 2
     assert "no existe" in capsys.readouterr().err
     assert not (tmp_path / "doc.knit.md").exists()  # checked before doing anything
+
+
+def test_run_with_params(tmp_path, capsys):
+    path = tmp_path / "doc.md"
+    path.write_text("---\nparams:\n  mes: 9\n---\n\n```python\nprint(params['mes'])\n```\n")
+    assert main(["run", str(path)]) == 0
+    assert main(["run", str(path), "-p", "mes=2026-10"]) == 0
+    assert capsys.readouterr().out == "9\n2026-10\n"
+    [h] = chain(["print(params['mes'])\n"], {"mes": "2026-10"})
+    assert Cache(path).load(h) == [{"mime": "stdout", "content": "2026-10\n"}]
+    assert main(["run", str(path), "-p", "anio=2026"]) == 2
+    assert "no tiene ese parámetro (tiene: mes)" in capsys.readouterr().err

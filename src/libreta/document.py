@@ -214,6 +214,27 @@ def front_value(front: str, key: str) -> str | None:
     return value
 
 
+def front_params(front: str) -> dict:
+    """The ``params:`` of the front matter, as RMarkdown's: one level of ``key: value``
+    lines, indented under it. Values as YAML reads the usual ones (numbers, true, false,
+    null, quoted strings); anything else is a string, ``2026-09`` included."""
+    m = re.search(r"^params:[ \t]*\n((?:[ \t]+.*\n)*)", front, re.M)
+    if m is None:
+        return {}
+    pairs = re.findall(r"^[ \t]+([\w-]+):[ \t]*(.*?)[ \t]*$", m[1], re.M)
+    return {key: scalar(value) for key, value in pairs}
+
+
+def scalar(value: str) -> object:
+    """A one-line YAML value, or a ``-p key=value`` of the command line."""
+    if value.startswith("'") and value.endswith("'") and len(value) > 1:
+        return value[1:-1].replace("''", "'")
+    try:
+        return json.loads(value)  # 3, 0.5, true, null, "text", [1, 2]
+    except ValueError:
+        return value
+
+
 def stamp(text: str, title: str, date: str) -> str:
     """The document as saving writes it: `title` in the front matter (removed if empty) and
     `date`, the day of the save. Only a title gives a document front matter it lacked."""

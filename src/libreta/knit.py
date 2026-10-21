@@ -12,7 +12,7 @@ import mimetypes
 import re
 from pathlib import Path
 
-from libreta.cache import GENESIS, Cache, chain
+from libreta.cache import Cache, states
 from libreta.document import expressions, parse, substitute
 
 TEXT = {
@@ -23,11 +23,11 @@ TEXT = {
 }
 
 
-def complete(path: Path) -> bool:
-    """Whether the cache holds every output and inline value of the document, from the
-    data on disk."""
+def complete(path: Path, params: dict | None = None) -> bool:
+    """Whether the cache holds every output and inline value of the document run with
+    `params`, from the data on disk."""
     parsed = parse(path.read_text(encoding="utf-8"))
-    keys = [GENESIS, *chain(b.code for b in parsed if b.kind == "python")]
+    keys = states((b.code for b in parsed if b.kind == "python"), params)
     cache = Cache(path)
     blocks = all(cache.load(k) is not None and not cache.stale(k) for k in keys[1:])
     values = all(
@@ -38,12 +38,13 @@ def complete(path: Path) -> bool:
     return blocks and values
 
 
-def knit(path: Path) -> tuple[str, list[str]]:
-    """The knitted Markdown of the document at `path`, writing its figures to
-    ``<name>_files/``; and the problems found (missing outputs, failed inline values)."""
+def knit(path: Path, params: dict | None = None) -> tuple[str, list[str]]:
+    """The knitted Markdown of the document at `path` run with `params`, writing its
+    figures to ``<name>_files/``; and the problems found (missing outputs, failed inline
+    values)."""
     source = path.read_text(encoding="utf-8")
     parsed = parse(source)
-    keys = [GENESIS, *chain(b.code for b in parsed if b.kind == "python")]
+    keys = states((b.code for b in parsed if b.kind == "python"), params)
     cache = Cache(path)
     files = remove_figures(path)
     problems: list[str] = []

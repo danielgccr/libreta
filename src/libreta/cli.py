@@ -5,14 +5,22 @@ import socket
 import subprocess
 import sys
 import webbrowser
+from collections.abc import Sequence
 from pathlib import Path
 from urllib.parse import quote
 
 import uvicorn
 
 from libreta.app import create_app
-from libreta.cache import GENESIS, Cache, chain
-from libreta.document import expressions, front_value, parse, split_front_matter
+from libreta.cache import Cache, states
+from libreta.document import (
+    expressions,
+    front_params,
+    front_value,
+    parse,
+    scalar,
+    split_front_matter,
+)
 from libreta.knit import complete, knit, remove_figures
 from libreta.worker import Worker, environment
 
@@ -31,6 +39,15 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("path", type=Path)
     export_parser = commands.add_parser("export", help="knit the document and convert it")
     export_parser.add_argument("path", type=Path)
+    for command in (run_parser, export_parser):
+        command.add_argument(
+            "-p",
+            "--param",
+            action="append",
+            default=[],
+            metavar="KEY=VALUE",
+            help="a value for one of the document's params",
+        )
     export_parser.add_argument("--to", choices=["html", "pdf"], default="html")
     export_parser.add_argument(
         "--css", type=Path, action="append", default=[], help="extra style sheet (HTML)"
@@ -40,9 +57,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     if args.command == "run":
-        return run(args.path)
+        return run(args.path, overrides=args.param)
     if args.command == "export":
-        return export(args.path, args.to, args.css, args.keep_md)
+        return export(args.path, args.to, args.css, args.keep_md, args.param)
     if args.command is None or args.path.is_dir():
         serve(args.path if args.command else Path.cwd())
     elif args.path.suffix != ".md":
@@ -53,20 +70,40 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def run(path: Path, keep_going: bool = False) -> int:
+def params(path: Path, overrides: Sequence[str]) -> dict | None:
+    """The document's params with the command line's ``KEY=VALUE`` over them; None (and
+    why, on stderr) if one names no param of the document, as RMarkdown does."""
+    result = front_params(split_front_matter(path.read_text(encoding="utf-8"))[0])
+    for item in overrides:
+        key, equals, value = item.partition("=")
+        if not equals or key not in result:
+            known = ", ".join(result) or "ninguno"
+            print(
+                f"libreta: -p {item}: el documento no tiene ese parámetro (tiene: {known})",
+                file=sys.stderr,
+            )
+            return None
+        result[key] = scalar(value)
+    return result
+
+
+def run(path: Path, keep_going: bool = False, overrides: Sequence[str] = ()) -> int:
     """Run every block in a fresh worker, caching its output; stop at the first error
-    (exit status 1), or with `keep_going` run the rest anyway."""
+    (exit status 1), or with `keep_going` run the rest anyway. `overrides`: KEY=VALUE for
+    the document's params."""
     if not path.is_file():
         print(f"libreta: no existe {path}", file=sys.stderr)
+        return 2
+    if (values := params(path, overrides)) is None:
         return 2
     source = path.read_text(encoding="utf-8")
     parsed = parse(source)
     blocks = [b for b in parsed if b.kind == "python"]
     exprs = expressions(parsed)
-    keys = [GENESIS, *chain(b.code for b in blocks)]
+    keys = states((b.code for b in blocks), values)
     cache = Cache(path)
     cache.prune(set(keys))
-    worker = Worker(path)
+    worker = Worker(path, values)
 
     def evaluate(i: int) -> bool:
         """The `py` expressions after block i - 1; False if any of them fails."""
@@ -106,21 +143,26 @@ def run(path: Path, keep_going: bool = False) -> int:
     return status
 
 
-def export(path: Path, to: str, css: list[Path], keep_md: bool = False) -> int:
+def export(
+    path: Path, to: str, css: list[Path], keep_md: bool = False, overrides: Sequence[str] = ()
+) -> int:
     """Knit the document from its cache (running it first if the cache is incomplete) into
     <name>.knit.md, and convert that with Pandoc when it is installed (DESIGN §10). The
     knitted Markdown and its figures go once converted (the output embeds them), unless
     `keep_md`; without Pandoc, or if it fails, they are what is left.
-    Errors stay in the document, as in the editor; they make the exit status 1."""
+    Errors stay in the document, as in the editor; they make the exit status 1.
+    `overrides`: KEY=VALUE for the document's params."""
     for file in [path, *css]:
         if not file.is_file():
             print(f"libreta: no existe {file}", file=sys.stderr)
             return 2
-    if not complete(path):
+    if (values := params(path, overrides)) is None:
+        return 2
+    if not complete(path, values):
         print(f"libreta: la caché no está completa; se ejecuta {path}", file=sys.stderr)
-        if run(path, keep_going=True) == 130:
+        if run(path, keep_going=True, overrides=overrides) == 130:
             return 130
-    markdown, problems = knit(path)
+    markdown, problems = knit(path, values)
     for problem in problems:
         print(f"libreta: {problem}", file=sys.stderr)
     knitted = path.with_name(f"{path.stem}.knit.md")

@@ -257,6 +257,26 @@ def test_changed_data_reruns_from_scratch(tmp_path):
         post_json(doc_app, "/restart", {})
 
 
+def test_params_reach_the_worker_and_the_cache(tmp_path):
+    doc_app = create_app(tmp_path, "secret")
+    text = "---\nparams:\n  n: 20\n---\n\n```python\nparams['n'] + 1\n```\n"
+    try:
+        assert items(post_json(doc_app, "/run", {"text": text, "line": 6})[2]) == [
+            {"start": 6},
+            {"mime": "text/plain", "content": "21"},
+        ]
+        (tmp_path / "doc.md").write_text(text)
+        _, _, body = get(cookie="secret", path=DOC, app=doc_app)
+        assert b'"output": [{"content": "21", "mime": "text/plain"}]' in body
+        other = text.replace("20", "30")  # other params: another chain, a fresh worker
+        assert items(post_json(doc_app, "/run", {"text": other, "line": 6})[2])[-1] == {
+            "mime": "text/plain",
+            "content": "31",
+        }
+    finally:
+        post_json(doc_app, "/restart", {})
+
+
 def test_escape_stops_the_replay(tmp_path):
     session = Session(tmp_path / "doc.md")
     text = "```python\nimport time\nprint('ready')\nwhile True:\n    time.sleep(0.01)\n```\n"

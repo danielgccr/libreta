@@ -12,6 +12,7 @@ import builtins
 import functools
 import importlib.util
 import inspect
+import json
 import linecache
 import os
 import re
@@ -33,7 +34,7 @@ from libreta import display
 BOOT = """
 import importlib.machinery, sys
 from multiprocessing.connection import Connection
-own = dict(zip(("libreta", "jedi", "parso"), sys.argv[3:]))
+own = dict(zip(("libreta", "jedi", "parso"), sys.argv[4:]))
 class Own:
     @staticmethod
     def find_spec(name, path=None, target=None):
@@ -41,7 +42,7 @@ class Own:
             return importlib.machinery.PathFinder.find_spec(name, [own[name]])
 sys.meta_path.insert(0, Own)
 from libreta.worker import _main
-_main(Connection(int(sys.argv[1])), sys.argv[2])
+_main(Connection(int(sys.argv[1])), sys.argv[2], sys.argv[3])
 """
 
 
@@ -78,14 +79,16 @@ def _supported(python: str) -> bool:
 
 
 class Worker:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, params: dict | None = None):
+        """`params`: the document's (DESIGN §3), a dict named `params` in the namespace."""
         python, env = environment(Path(path).parent)
         parent, child = socket.socketpair()
         with child:
             own = [_home(package) for package in ("libreta", "jedi", "parso")]
+            fd = str(child.fileno())
             self.process = subprocess.Popen(
                 # -P: no folder of the server in sys.path; _main puts the document's there.
-                [python, "-P", "-c", BOOT, str(child.fileno()), str(path), *own],
+                [python, "-P", "-c", BOOT, fd, str(path), json.dumps(params), *own],
                 pass_fds=[child.fileno()],
                 env=env,
                 stdin=subprocess.DEVNULL,
@@ -247,7 +250,7 @@ def _literals(source: str, directory: str) -> list[str]:
     ]
 
 
-def _main(conn, filename: str) -> None:
+def _main(conn, filename: str, params: str) -> None:
     global _conn, _running
     _conn = conn
     signal.signal(signal.SIGINT, _on_sigint)
@@ -263,6 +266,8 @@ def _main(conn, filename: str) -> None:
     sys.stderr = display.Stream("stderr", emit)
     builtins.display = show  # a builtin: a user's own `display` shadows it
     namespace = {"__name__": "__main__"}
+    if params := json.loads(params):
+        namespace["params"] = params
     while True:
         try:
             kind, *args, source = conn.recv()

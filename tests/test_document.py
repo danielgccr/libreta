@@ -6,8 +6,10 @@ import pytest
 from libreta.document import (
     code_at,
     expressions,
+    front_params,
     front_value,
     parse,
+    scalar,
     serialize,
     split_front_matter,
     stamp,
@@ -221,3 +223,20 @@ def test_stamp():
     for title in ["¿Qué tal?", "true", "# no", " x", "a\nb", "Ünïcode ok"]:
         front, _ = split_front_matter(stamp("", title, "d"))
         assert front_value(front, "title") == title
+
+
+def test_front_params():
+    front = (
+        "---\ntitle: Informe\nparams:\n  mes: 2026-09\n  umbral: 0.5\n  region: 'Sur'\n"
+        '  todo: true\n  nombre: "a: b"\n  nada: null\ndate: 2026-10-22\n---\n'
+    )
+    assert front_params(front) == {
+        "mes": "2026-09",  # not a number, not a date: a string
+        "umbral": 0.5,
+        "region": "Sur",
+        "todo": True,
+        "nombre": "a: b",
+        "nada": None,
+    }
+    assert front_params("---\ntitle: x\n---\n") == {}
+    assert scalar("3") == 3 and scalar("tres") == "tres"

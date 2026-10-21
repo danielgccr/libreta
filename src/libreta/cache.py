@@ -1,6 +1,7 @@
 """Block outputs on disk, keyed by chained hashes (DESIGN §5).
 
 ``h_i = sha256(h_{i-1} + code_i)``: changing a block invalidates it and every block after it.
+The chain starts at GENESIS, the empty namespace, or after it at the document's params.
 Each block's outputs are ``<hash>.json`` in ``.libreta/<document name>/`` next to the
 document; figures go to files of their own, ``<hash>-<n>.<ext>``, for the export to link.
 The values of the inline `py` expressions in the Markdown after the block are
@@ -26,9 +27,17 @@ STREAMS = ("stdout", "stderr")
 GENESIS = hashlib.sha256(b"").hexdigest()  # the chain before the first block: empty namespace
 
 
-def chain(codes: Iterable[str]) -> list[str]:
+def states(codes: Iterable[str], params: dict | None = None) -> list[str]:
+    """The state at each point of a document, given its blocks' code in order: keys[0]
+    before the first block (the empty namespace, or one holding `params`), keys[i] after
+    block i."""
+    start = _link(GENESIS, json.dumps(params, sort_keys=True)) if params else GENESIS
+    return list(accumulate(codes, _link, initial=start))
+
+
+def chain(codes: Iterable[str], params: dict | None = None) -> list[str]:
     """The chained hash of each Python block, given their code in document order."""
-    return list(accumulate(codes, _link, initial=GENESIS))[1:]
+    return states(codes, params)[1:]
 
 
 def _link(h: str, code: str) -> str:

@@ -55,10 +55,17 @@ El fichero es Markdown estándar (CommonMark). Reglas:
   En GitHub o en cualquier visor se ve la expresión, que sigue siendo legible.
 - Las salidas no se guardan en el `.md`. Viven en la caché (§5).
 - Front matter YAML opcional al principio (`---` … `---`), el de Pandoc, Obsidian y GitHub.
-  libreta solo lee y escribe `title` y `date`; el resto de claves se conserva tal cual.
+  libreta escribe `title` y `date`, y lee además `params`; el resto de claves se conserva tal cual.
   Al guardar, `title` es el del editor (se borra si queda vacío) y `date` el día del
   guardado (ISO, sin comillas: una fecha YAML). Un documento sin front matter solo lo
   recibe cuando se le pone título. Valores de una línea: no hay parser de YAML.
+- Parámetros, como en RMarkdown: `params:` en el front matter, con una línea sangrada
+  `clave: valor` por parámetro. El worker los recibe en un dict `params` (sin `params:`
+  no existe ese nombre). Los valores, como los lee YAML en los casos corrientes (números,
+  `true`, `false`, `null`, cadenas entre comillas); lo demás es texto (`2026-09` también).
+  El editor ejecuta con los del fichero (el YAML no se ve: se cambian fuera); `run` y
+  `export` aceptan `-p clave=valor`, que debe nombrar un parámetro declarado. Los
+  parámetros abren la cadena de hashes (§5): otros valores, otras salidas en caché.
 - Garantía de ida y vuelta: `serialize(parse(texto)) == texto`, byte a byte, incluidos
   espacios finales, líneas en blanco y finales de línea. Es un test obligatorio con
   ficheros de ejemplo variados.
@@ -203,7 +210,8 @@ Así no hace falta sincronizar ids de bloque entre cliente y servidor.
 ## 5. Caché
 
 - Clave de cada bloque: hash encadenado `h_i = sha256(h_{i-1} + código_i)`. Cambiar un
-  bloque invalida ese y todos los posteriores.
+  bloque invalida ese y todos los posteriores. `h_0` es el hash vacío, o con parámetros
+  (§3), `sha256(h_vacío + JSON de los parámetros)`.
 - El código no es lo único de lo que depende un bloque: también de los datos. Cada entrada
   guarda (`<hash>-reads.json`) los ficheros de la carpeta del documento que el namespace
   había leído al acabar el bloque, con su mtime y tamaño. Si alguno cambia en disco, la
@@ -403,7 +411,8 @@ Endpoints:
 - `libreta edit doc.md` sirve la carpeta del documento y abre el navegador en él.
 - `libreta run doc.md` ejecuta de arriba abajo en un proceso nuevo, actualiza la caché e
   informa de errores con línea del `.md`. Código de salida distinto de cero si falla algún
-  bloque. Pensado para terminal, cron y CI.
+  bloque. Pensado para terminal, cron y CI. `-p clave=valor` da otro valor a un parámetro
+  (§3); también en `export`.
 - `libreta export doc.md [--to html|pdf] [--css ...]` genera el Markdown tejido (§10) y, si
   Pandoc está instalado, lo convierte. Si a la caché le falta algo, ejecuta antes el
   documento entero; a diferencia de `run`, sigue tras un error, que queda en el documento

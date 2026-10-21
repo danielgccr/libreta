@@ -97,7 +97,27 @@ the document; the date is set on save.
 Outputs are not stored in the `.md`: they live in `.libreta/<document>/` next to the
 document, keyed by a chained hash of the blocks. Opening a document shows the outputs of
 its last run without running anything; changing a block invalidates it and the ones after.
+The data counts too: libreta notes the files each block reads (`open()`, pandas, and paths
+named in the code, for parquet, polars or duckdb), and if one changes on disk the block and
+the ones after it are stale; running a later block starts again from the top.
 The folder is disposable: add it to `.gitignore` or commit it.
+
+### Params
+
+As in RMarkdown, the front matter can declare params, which the code reads from a `params`
+dict:
+
+```yaml
+---
+title: Monthly report
+params:
+  month: 2026-09
+  threshold: 0.5
+---
+```
+
+The editor runs with these values; `libreta run` and `libreta export` take others with
+`-p month=2026-10` (once per param).
 
 ### `libreta run`
 

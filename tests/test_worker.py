@@ -224,3 +224,13 @@ def test_reads_data_files_under_the_folder(tmp_path):
         assert w.reads["salida.txt"][1] == 4
     finally:
         w.close()
+
+
+def test_params(tmp_path):
+    w = Worker(tmp_path / "doc.md", {"mes": "2026-09", "n": 3})
+    try:
+        assert run(w, "params['n'] * 2, params['mes']") == [("text/plain", "(6, '2026-09')")]
+    finally:
+        w.close()
+    assert "NameError" in run(worker := Worker(tmp_path / "doc.md"), "params")[0][1]
+    worker.close()

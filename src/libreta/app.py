@@ -31,11 +31,12 @@ from starlette.responses import (
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from libreta.cache import GENESIS, Cache, chain, to_json
+from libreta.cache import GENESIS, Cache, chain, states, to_json
 from libreta.document import (
     Block,
     code_at,
     expressions,
+    front_params,
     front_value,
     parse,
     split_front_matter,
@@ -88,14 +89,14 @@ class RevalidatedStaticFiles(StaticFiles):
         return response
 
 
-def editor_blocks(text: str, cache: Cache | None = None) -> list[dict]:
+def editor_blocks(text: str, cache: Cache | None = None, params: dict | None = None) -> list[dict]:
     """What each editor block shows. A block's last line ending is implied, not shown:
     the client adds it back when serializing (see serialize() in blocks.js).
     With a cache, Python blocks also carry their cached output, the values of the Markdown
     after them (None if there are none) and whether the data they read has changed since
     (and with it, every block after them)."""
     parsed = parse(text)
-    hashes = iter(chain(b.code for b in parsed if b.kind == "python"))
+    hashes = iter(chain((b.code for b in parsed if b.kind == "python"), params))
     blocks = []
     stale = False
     for block in parsed:
@@ -178,7 +179,8 @@ class Session:
         (0: before the first one)."""
         blocks = [b for b in parsed if b.kind == "python"]
         exprs = expressions(parsed)
-        keys = [GENESIS, *chain(b.code for b in blocks)]  # keys[i]: the state before block i
+        params = front_params(split_front_matter(text)[0])
+        keys = states((b.code for b in blocks), params)  # keys[i]: the state before block i
         target = n - 1 if inline else n  # last block to run; -1: none
 
         def evaluate(i):  # the Markdown at point i, after block i - 1
@@ -204,7 +206,7 @@ class Session:
                 or self.cache.stale(keys[target])
             )
             if fresh:
-                self._new_worker()
+                self._new_worker(params)
                 yield from evaluate(0)
             for i in range(0 if fresh else target, target + 1):
                 # An error in an earlier block does not stop the rest (the editor is
@@ -225,22 +227,23 @@ class Session:
                 if not self.interrupted:
                     yield from evaluate(i + 1)
 
-    def assist(self, kind: str, code: str, line: int, column: int) -> list[dict]:
+    def assist(self, kind: str, code: str, line: int, column: int, params: dict) -> list[dict]:
         """Completions or signatures from jedi in the worker (see Worker.assist)."""
         if not self.lock.acquire(blocking=False):  # ponytail: no help while a block runs
             return []
         try:
             if self.worker is None or not self.worker.alive():
-                self._new_worker()
+                self._new_worker(params)
             return self.worker.assist(kind, code, line, column)
         finally:
             self.lock.release()
 
-    def _new_worker(self) -> None:
+    def _new_worker(self, params: dict) -> None:
         if self.worker is not None:
             self.worker.close()
-        self.worker = Worker(self.path)
-        self.state = (GENESIS, GENESIS)
+        self.worker = Worker(self.path, params)
+        start = states([], params)[0]
+        self.state = (start, start)
 
     def interrupt(self) -> None:
         self.interrupted = True
@@ -372,10 +375,12 @@ def create_app(root: Path, token: str) -> Starlette:
         text = text.replace("\r\n", "\n").replace("\r", "\n")
         # The front matter is no block: the editor shows its title and date above them.
         front, body = split_front_matter(text)
+        params = front_params(front)
         doc = {
-            "blocks": editor_blocks(body, session.cache),
+            "blocks": editor_blocks(body, session.cache, params),
             "finalNewline": text == "" or text.endswith("\n"),
-            "values": session.cache.load_values(GENESIS),  # Markdown before the first block
+            # The Markdown before the first block.
+            "values": session.cache.load_values(states([], params)[0]),
             "front": front,
             "title": front_value(front, "title") or "",
             "date": front_value(front, "date"),
@@ -424,15 +429,18 @@ def create_app(root: Path, token: str) -> Starlette:
         if point is None:
             return JSONResponse([])
         kind = request.url.path.rpartition("/")[2]
+        params = front_params(split_front_matter(data["text"])[0])
         await using(session)
-        return JSONResponse(await run_in_threadpool(session.assist, kind, *point))
+        return JSONResponse(await run_in_threadpool(session.assist, kind, *point, params))
 
     async def stale_line(request: Request):
         """{text} -> the line of the first Python block whose data changed on disk, or null:
         the editor fades it and the ones after it (asked when the window gets focus back)."""
         _, session = document(request)
-        blocks = [b for b in parse((await request.json())["text"]) if b.kind == "python"]
-        for block, h in zip(blocks, chain(b.code for b in blocks), strict=True):
+        text = (await request.json())["text"]
+        blocks = [b for b in parse(text) if b.kind == "python"]
+        params = front_params(split_front_matter(text)[0])
+        for block, h in zip(blocks, chain((b.code for b in blocks), params), strict=True):
             if session.cache.stale(h):
                 return JSONResponse(block.line)
         return JSONResponse(None)
