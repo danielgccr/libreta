@@ -239,6 +239,11 @@ pre.out {
 .out.error {
   color: var(--error);
 }
+/* How long a slow block took (DESIGN §4.2): a note at the foot of its output. */
+.out.elapsed {
+  color: var(--text-muted);
+  text-align: end;
+}
 .out.text-latex {
   color: var(--hl-math); /* LaTeX source: rendered only in the export */
 }

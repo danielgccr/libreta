@@ -3,7 +3,7 @@ import venv
 import pytest
 
 from libreta.app import modules
-from libreta.worker import Worker, environment
+from libreta.worker import Worker, duration, environment
 
 
 @pytest.fixture(scope="module")
@@ -234,3 +234,16 @@ def test_params(tmp_path):
         w.close()
     assert "NameError" in run(worker := Worker(tmp_path / "doc.md"), "params")[0][1]
     worker.close()
+
+
+def test_slow_blocks_say_how_long(worker, monkeypatch):
+    assert run(worker, "1") == [("text/plain", "1")]
+    monkeypatch.setattr("libreta.worker.SLOW", 0)
+    assert run(worker, "1") == [("text/plain", "1"), ("elapsed", "0 s")]
+    assert [duration(s) for s in (2.4, 59.6, 80, 120, 7500)] == [
+        "2 s",
+        "1 min",
+        "1 min 20 s",
+        "2 min",
+        "2 h 5 min",
+    ]

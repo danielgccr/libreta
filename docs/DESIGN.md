@@ -142,6 +142,10 @@ Comunicación con el servidor por un socket con el protocolo de `multiprocessing
    pasar.
 5. Errores: traceback recortado a los frames del código del usuario, mostrado dentro del
    bloque gris con un tono rojo apagado.
+6. Un bloque que tarda 2 s o más lo dice al pie de su salida, en gris y a la derecha ("14 s",
+   "1 min 20 s"): es un elemento más (`elapsed`) de la salida, así que se guarda en caché y
+   se ve al abrir el documento. `libreta run` lo escribe en stderr con la línea del bloque.
+   No va al export.
 
 ### 4.3 Protocolo de display
 

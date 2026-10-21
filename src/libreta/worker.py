@@ -4,7 +4,7 @@ The child runs the Python of the document's project (see `environment`), not nec
 libreta's: a subprocess of that interpreter, talking to the parent over a socket with
 multiprocessing's Connection protocol. A block's output is streamed as ``(mime, content)``
 items, where mime is a real MIME type for displayed values or one of ``stdout``,
-``stderr`` and ``error`` (a formatted traceback).
+``stderr``, ``error`` (a formatted traceback) and ``elapsed`` (how long a slow block took).
 """
 
 import ast
@@ -22,6 +22,7 @@ import stat
 import subprocess
 import sys
 import threading
+import time
 import traceback
 from collections.abc import Iterator
 from multiprocessing.connection import Connection
@@ -78,6 +79,20 @@ def _supported(python: str) -> bool:
     return False
 
 
+SLOW = 2.0  # seconds: a block that takes longer says how long
+
+
+def duration(seconds: float) -> str:
+    """How long a block took, in whole units ("14 s", "1 min 20 s", "2 h 5 min"): no
+    decimal separator to translate."""
+    s = round(seconds)
+    if s < 60:
+        return f"{s} s"
+    if s < 3600:
+        return f"{s // 60} min {s % 60} s" if s % 60 else f"{s // 60} min"
+    return f"{s // 3600} h {s % 3600 // 60} min"
+
+
 class Worker:
     def __init__(self, path: Path, params: dict | None = None):
         """`params`: the document's (DESIGN §3), a dict named `params` in the namespace."""
@@ -103,8 +118,12 @@ class Worker:
         return self.process.poll() is None
 
     def run(self, code: str, lineno: int, source: str) -> Iterator[tuple[str, str | bytes]]:
-        """Execute `code`, whose first line is line `lineno` of the document `source`."""
+        """Execute `code`, whose first line is line `lineno` of the document `source`.
+        A block that takes SLOW seconds or more ends with an ``elapsed`` item: "14 s"."""
+        start = time.monotonic()
         yield from self._request(("run", code, lineno, source))
+        if (seconds := time.monotonic() - start) >= SLOW:
+            yield "elapsed", duration(seconds)
 
     def inline(self, expressions: list[str], source: str) -> dict[str, dict]:
         """Evaluate inline `py` expressions: ``{expr: {"text": str(value)} | {"error": ...}}``.

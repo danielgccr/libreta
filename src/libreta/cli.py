@@ -131,6 +131,9 @@ def run(path: Path, keep_going: bool = False, overrides: Sequence[str] = ()) -> 
             items = []
             for mime, content in worker.run(block.code, block.line + 1, source):
                 items.append((mime, content))
+                if mime == "elapsed":
+                    print(f"libreta: línea {block.line}: {content}", file=sys.stderr)
+                    continue
                 out = sys.stderr if mime in STDERR else sys.stdout
                 if mime not in STREAMS:
                     content = (content if mime in VALUES else f"[{mime}]") + "\n"
