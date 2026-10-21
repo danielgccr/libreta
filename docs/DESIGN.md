@@ -388,5 +388,7 @@ Cada hito termina con tests en verde y, si toca frontend, pasos de prueba manual
 - ¿La caché se versiona en git o va en `.gitignore`?
 - Guardado: explícito con Ctrl+S, automático con debounce, o ambos.
 - Cambios externos al fichero mientras está abierto en el editor (fuera de alcance en v1).
+- Servidor con la biblioteca estándar en vez de Starlette y uvicorn: ver
+  `docs/servidor-stdlib.md`.
 - Optimización futura del reinicio en §4.5: snapshots del worker con `os.fork` tras cada
   bloque (copy-on-write, solo Linux/macOS) para no reejecutar bloques caros.
