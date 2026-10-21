@@ -35,7 +35,7 @@ Markdown. Nada de celdas visibles: el documento parece una hoja continua.
 | ArrowUp / ArrowDown | En la primera o última línea de un bloque, saltan al bloque anterior o siguiente. La salida de un bloque nunca recibe foco. |
 | Backspace / Supr | Backspace al inicio de un bloque de Python vacío, o Supr dentro de él o al final del Markdown que lo precede, lo elimina y fusiona los bloques de Markdown adyacentes. |
 | Ctrl+A / Ctrl+C | Seleccionan y copian el documento completo como Markdown (con sus fences), no solo el bloque activo. En un bloque de Python, el primer Ctrl+A selecciona su código; el segundo, el documento. |
-| Ctrl+S | Guarda. |
+| Ctrl+S | Guarda. Además, con cambios sin guardar, el editor guarda solo cada 10 minutos. |
 | Ctrl+Espacio | Autocompletado (además del disparo automático, ver §6.6). |
 | Escape | Con un bloque en ejecución, lo interrumpe (`KeyboardInterrupt`). |
 | Ctrl+Shift+F10 | Reinicia el worker con el namespace vacío (mismo atajo que "restart R" en RStudio). |
@@ -396,8 +396,14 @@ Endpoints:
 - `GET /edit/<ruta>` el editor del documento. Las demás llamadas cuelgan de esa misma URL
   (`/edit/<ruta>/run`...), así que `api.js` solo necesita `location.pathname`. Encima del
   título, la ruta del documento enlaza a la lista.
-- `PUT /doc` `{text, title}` guardar (escritura atómica, conserva CRLF). Pone el título y
-  la fecha en el front matter y responde `{text, front, date}`: lo que quedó en disco.
+- `PUT /doc` `{text, title, mtime}` guardar (escritura atómica, conserva CRLF). Pone el
+  título y la fecha en el front matter y responde `{text, front, date, mtime}`: lo que quedó
+  en disco. `mtime` (`st_mtime_ns` como cadena: no cabe en un número de JS) es la versión
+  del fichero de la que parte el editor, la de la página o la del último guardado. Si en
+  disco ya es otra (un `git pull`, otro editor, el fichero borrado), responde 409 y no
+  escribe: Ctrl+S pregunta si sobrescribir (`force: true`); el autoguardado no insiste y
+  el documento sigue marcado como sin guardar. No se fusiona nada: recargar la página
+  trae la versión del disco.
 - `POST /run` `{text, line}`: documento completo y línea donde abre el fence del bloque.
   Responde en streaming con NDJSON, un elemento `{mime, content}` (o `{mime, base64}`)
   por línea, en orden. Antes de la salida de cada bloque que se ejecuta llega `{start: línea}`:
@@ -550,8 +556,6 @@ Cada hito termina con tests en verde y, si toca frontend, pasos de prueba manual
 
 ## 13. Decisiones abiertas
 
-- Guardado: explícito con Ctrl+S, automático con debounce, o ambos.
-- Cambios externos al fichero mientras está abierto en el editor (fuera de alcance en v1).
 - Servidor con la biblioteca estándar en vez de Starlette y uvicorn: ver
   `docs/servidor-stdlib.md`.
 - Optimización futura del reinicio en §4.5: snapshots del worker con `os.fork` tras cada

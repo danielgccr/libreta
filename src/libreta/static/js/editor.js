@@ -63,6 +63,7 @@ window.addEventListener("resize", paintAllNotes);
 const pageTitle = document.title;
 let saved = serialize(main); // what is on disk
 let savedTitle = titleInput.value;
+let mtime = doc.mtime; // the version on disk this editor started from, or last saved
 let allSelected = false; // Ctrl+A: the whole document, not one textarea
 
 // Unsaved changes = the document differs from what was last saved; no flag to fall out of
@@ -97,18 +98,23 @@ function selectAll(on) {
   main.classList.toggle("all-selected", on);
 }
 
-async function save() {
+// The file changed on disk behind the editor (git pull, another editor): Ctrl+S asks before
+// overwriting it; the autosave leaves it alone, and the unsaved mark stays.
+async function save(auto = false, force = false) {
   const title = titleInput.value;
   try {
-    const result = await api.save(serialize(main), title);
+    const result = await api.save(serialize(main), title, mtime, force);
     main.dataset.front = result.front;
     saved = result.text;
     savedTitle = title;
+    mtime = result.mtime;
     showDate(result.date);
     showDirty();
     announce(tr("Guardado"));
   } catch (error) {
-    alert(tr("No se ha podido guardar: {error}", { error: error.message }));
+    if (error.status !== 409) alert(tr("No se ha podido guardar: {error}", { error: error.message }));
+    else if (auto) announce(tr("Sin guardar: el fichero ha cambiado fuera del editor"));
+    else if (confirm(tr("El fichero ha cambiado fuera del editor. ¿Sobrescribirlo?"))) save(false, true);
   }
 }
 
@@ -370,6 +376,7 @@ document.addEventListener("mousedown", () => {
 });
 main.addEventListener("focusout", closeAssist);
 window.addEventListener("pagehide", api.close);
+setInterval(() => isDirty() && save(true), 10 * 60 * 1000); // autosave
 window.addEventListener("beforeunload", (event) => {
   if (isDirty()) event.preventDefault();
 });

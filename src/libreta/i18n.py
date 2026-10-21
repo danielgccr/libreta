@@ -83,6 +83,13 @@ EN = {
     "Python, bloque {n} de {total}": "Python, block {n} of {total}",
     "Guardado": "Saved",
     "No se ha podido guardar: {error}": "Could not save: {error}",
+    "El fichero ha cambiado fuera del editor.": "The file has changed outside the editor.",
+    "El fichero ha cambiado fuera del editor. ¿Sobrescribirlo?": (
+        "The file has changed outside the editor. Overwrite it?"
+    ),
+    "Sin guardar: el fichero ha cambiado fuera del editor": (
+        "Not saved: the file has changed outside the editor"
+    ),
     "Valores actualizados": "Values updated",
     "Bloque {n}: error": "Block {n}: error",
     "Bloque {n} ejecutado": "Block {n} run",

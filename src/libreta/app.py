@@ -145,6 +145,12 @@ def _chop(text: str) -> str:
     return text[:-1] if text.endswith("\n") else text
 
 
+def mtime(path: Path) -> str | None:
+    """The file's version, to notice it changed on disk behind the editor's back. A string:
+    nanoseconds do not fit a JS number."""
+    return str(path.stat().st_mtime_ns) if path.exists() else None
+
+
 def save(path: Path, text: str) -> None:
     """Atomic write that keeps the file's line endings (the editor only speaks \\n)."""
     target = path.resolve()  # write through a symlink, do not replace it
@@ -394,6 +400,7 @@ def create_app(root: Path, token: str) -> Starlette:
             "front": front,
             "title": front_value(front, "title") or "",
             "date": front_value(front, "date"),
+            "mtime": mtime(path),
             "modules": modules(path.parent),  # again on focus: GET .../modules
         }
         return page(
@@ -405,14 +412,18 @@ def create_app(root: Path, token: str) -> Starlette:
         )
 
     async def put_doc(request: Request):
-        """{text, title} -> the text as saved, its front matter and date: saving sets the
-        title and stamps the day in the front matter."""
+        """{text, title, mtime, force} -> the text as saved, its front matter, date and
+        mtime: saving sets the title and stamps the day in the front matter. 409 if the file
+        is no longer the version the editor loaded (`mtime`), unless `force`."""
         path, _ = document(request)
         data = await request.json()
+        if not data.get("force") and data.get("mtime") != mtime(path):
+            return PlainTextResponse(tr("El fichero ha cambiado fuera del editor."), 409)
         text = stamp(data["text"], data["title"].strip(), date.today().isoformat())
         save(path, text)
         front, _ = split_front_matter(text)
-        return JSONResponse({"text": text, "front": front, "date": front_value(front, "date")})
+        saved = {"text": text, "front": front, "date": front_value(front, "date")}
+        return JSONResponse(saved | {"mtime": mtime(path)})
 
     async def run(request: Request):
         """Run the Python block whose fence opens at `line` of `text` (the unsaved document:

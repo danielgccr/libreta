@@ -5,16 +5,21 @@ const BASE = location.pathname;
 
 async function request(path, options = {}) {
   const response = await fetch(BASE + path, { method: "POST", ...options });
-  if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+  if (!response.ok) {
+    const error = new Error((await response.text()) || `HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
   return response;
 }
 
-// Saving sets the title in the front matter and stamps the date: {text, front, date} back.
-export async function save(text, title) {
+// Saving sets the title in the front matter and stamps the date: {text, front, date, mtime}
+// back. 409 if the file changed on disk since `mtime`, unless `force`.
+export async function save(text, title, mtime, force = false) {
   const response = await request("/doc", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, title }),
+    body: JSON.stringify({ text, title, mtime, force }),
   });
   return response.json();
 }

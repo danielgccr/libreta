@@ -124,21 +124,29 @@ def test_put_doc(tmp_path):
     path = tmp_path / "nuevo.md"
     doc_app = create_app(tmp_path, "secret")
     assert get(method="PUT", path="/edit/nuevo.md/doc", body=b"x", app=doc_app)[0] == 403
-    body = json.dumps({"text": "# Hola\n", "title": ""}).encode()
+    body = json.dumps({"text": "# Hola\n", "title": "", "mtime": None}).encode()
     status, _, response = get(
         method="PUT", path="/edit/nuevo.md/doc", body=body, cookie="secret", app=doc_app
     )
     assert status == 200 and path.read_text() == "# Hola\n"  # no title: no front matter
-    assert json.loads(response) == {"text": "# Hola\n", "front": "", "date": None}
+    response = json.loads(response)
+    assert response.pop("mtime") == str(path.stat().st_mtime_ns)
+    assert response == {"text": "# Hola\n", "front": "", "date": None}
     assert sorted(p.name for p in tmp_path.iterdir()) == ["nuevo.md"]  # no temp file left
-    body = json.dumps({"text": "# Hola\n", "title": " Informe "}).encode()
+    body = {"text": "# Hola\n", "title": " Informe ", "mtime": str(path.stat().st_mtime_ns)}
     _, _, response = get(
-        method="PUT", path="/edit/nuevo.md/doc", body=body, cookie="secret", app=doc_app
+        method="PUT",
+        path="/edit/nuevo.md/doc",
+        body=json.dumps(body).encode(),
+        cookie="secret",
+        app=doc_app,
     )
     today = date.today().isoformat()
     front = f"---\ntitle: Informe\ndate: {today}\n---\n"
     assert path.read_text() == front + "# Hola\n"
-    assert json.loads(response) == {"text": front + "# Hola\n", "front": front, "date": today}
+    response = json.loads(response)
+    del response["mtime"]
+    assert response == {"text": front + "# Hola\n", "front": front, "date": today}
     status, _, page = get(cookie="secret", path="/edit/nuevo.md", app=doc_app)
     assert b'"title": "Informe"' in page and b'"value": "# Hola"' in page  # YAML: no block
 
@@ -441,3 +449,23 @@ def test_new_document(tmp_path):
     assert b"Escribe un nombre" in new(b"name=+")[2]
     (tmp_path / "dir.md").mkdir()
     assert b"No se pudo crear" in new(b"name=dir")[2]
+
+
+def test_put_doc_refuses_a_file_changed_on_disk(tmp_path):
+    path = tmp_path / "doc.md"
+    path.write_text("uno\n")
+    doc_app = create_app(tmp_path, "secret")
+    _, _, page = get(cookie="secret", path="/edit/doc.md", app=doc_app)
+    loaded = str(path.stat().st_mtime_ns)
+    assert f'"mtime": "{loaded}"'.encode() in page
+    os.utime(path, ns=(0, path.stat().st_mtime_ns + 1))  # git pull, another editor...
+
+    def put(**fields):
+        body = json.dumps({"text": "mío\n", "title": "", "mtime": loaded} | fields).encode()
+        return get(method="PUT", path="/edit/doc.md/doc", body=body, cookie="secret", app=doc_app)
+
+    assert put()[0] == 409 and path.read_text() == "uno\n"
+    assert put(mtime=str(path.stat().st_mtime_ns))[0] == 200  # the version on disk: saves
+    path.unlink()  # deleted behind the editor: also a change
+    assert put(mtime=loaded)[0] == 409 and not path.exists()
+    assert put(force=True)[0] == 200 and path.read_text() == "mío\n"
