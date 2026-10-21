@@ -87,7 +87,16 @@ cierre >= apertura, mismo carácter, indentación de hasta 3 espacios.
 ### 4.1 Worker
 
 Un proceso hijo por documento con un namespace persistente (`dict`) donde se hace `exec`.
-Comunicación con el servidor por pipe con mensajes serializados. Nada de kernels de Jupyter.
+Comunicación con el servidor por un socket con el protocolo de `multiprocessing.connection`
+(mensajes serializados). Nada de kernels de Jupyter.
+
+- Entorno: el worker es un subproceso del Python del proyecto del documento, sin
+  configurar nada: el `.venv` más cercano subiendo desde su carpeta (PEP 704), si no el
+  entorno activado (`VIRTUAL_ENV`), si no el Python de libreta. Corre con ese entorno
+  "activado" (`VIRTUAL_ENV`, `PATH`). Un *finder* de importación le presta `libreta`,
+  `jedi` y `parso` desde la instalación de libreta; nada más de ella se cuela. Un entorno
+  con Python anterior a 3.12 no sirve (se avisa y se usa el de libreta). La lista de
+  módulos importables del editor (§6.3) se pide a ese mismo Python. Solo POSIX.
 
 - Interrupción: SIGINT al worker (`KeyboardInterrupt` dentro del bloque en curso).
 - Reinicio: matar y crear un worker nuevo con namespace vacío.

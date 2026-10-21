@@ -272,7 +272,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 // Back from the terminal (`uv add pandas`): imports greyed out may be installed now.
-let moduleList = doc.modules.join();
+let moduleList = (doc.modules ?? []).join();
 window.addEventListener("focus", async () => {
   const names = await api.modules().catch(() => null);
   if (!names || names.join() === moduleList) return;

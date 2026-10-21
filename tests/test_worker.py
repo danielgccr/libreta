@@ -1,6 +1,9 @@
+import venv
+
 import pytest
 
-from libreta.worker import Worker
+from libreta.app import modules
+from libreta.worker import Worker, environment
 
 
 @pytest.fixture(scope="module")
@@ -149,3 +152,26 @@ def test_display_builtin(worker):
         ("text/plain", "5"),  # the user's own display shadows the builtin
     ]
     run(worker, "del display")
+
+
+def test_project_environment(tmp_path):
+    """A document inside a project with its own .venv runs in that Python (PEP 704), with
+    libreta's modules and jedi lent to it and nothing else of libreta's environment."""
+    venv.create(tmp_path / ".venv", with_pip=False)
+    (tmp_path / "informes").mkdir()
+    doc = tmp_path / "informes" / "doc.md"
+    python, env = environment(doc.parent)
+    assert python == str(tmp_path / ".venv" / "bin" / "python")
+    assert env["VIRTUAL_ENV"] == str(tmp_path / ".venv")
+    w = Worker(doc)
+    try:
+        [(_, prefix)] = run(w, "import sys\nsys.prefix")
+        assert prefix == repr(str(tmp_path / ".venv"))
+        [(mime, error)] = run(w, "import starlette")  # libreta's, not the project's
+        assert mime == "error" and "ModuleNotFoundError" in error
+        assert run(w, "display('visto')") == [("text/plain", "'visto'")]
+        assert "dumps" in {c["name"] for c in w.assist("complete", "import json\njson.du", 2, 7)}
+    finally:
+        w.close()
+    names = modules(doc.parent)
+    assert "json" in names and "starlette" not in names

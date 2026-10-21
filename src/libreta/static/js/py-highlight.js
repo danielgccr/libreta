@@ -37,7 +37,7 @@ const TOKEN = new RegExp(
 let modules = null; // Set of importable top-level modules; null: unknown, nothing greyed
 
 export function setModules(names) {
-  modules = new Set(names);
+  modules = names ? new Set(names) : null; // null: the server could not tell
 }
 
 export function escapeHtml(s) {

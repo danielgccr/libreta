@@ -14,7 +14,7 @@ from libreta.app import create_app
 from libreta.cache import GENESIS, Cache, chain
 from libreta.document import expressions, front_value, parse, split_front_matter
 from libreta.knit import complete, knit, remove_figures
-from libreta.worker import Worker
+from libreta.worker import Worker, environment
 
 HERE = Path(__file__).parent
 STREAMS = {"stdout", "stderr", "error"}
@@ -166,7 +166,9 @@ def serve(root: Path, document: str | None = None) -> None:
     sock.listen()  # queue the browser's first request until uvicorn starts accepting
     page = f"edit/{quote(document)}" if document else ""
     url = f"http://127.0.0.1:{sock.getsockname()[1]}/{page}?token={token}"
+    python, _ = environment(root)
     print(f"libreta: {root / (document or '')} en {url}", flush=True)
+    print(f"libreta: Python de {python}", flush=True)
     webbrowser.open(url)
     server = uvicorn.Server(uvicorn.Config(create_app(root, token), log_level="warning"))
     try:

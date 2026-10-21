@@ -2,13 +2,11 @@
 localhost (Host header, against DNS rebinding) and carry the session token."""
 
 import contextlib
-import importlib.metadata
 import json
 import os
-import pkgutil
 import secrets
 import shutil
-import sys
+import subprocess
 import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -41,7 +39,7 @@ from libreta.document import (
     split_front_matter,
     stamp,
 )
-from libreta.worker import Worker
+from libreta.worker import Worker, environment
 
 HERE = Path(__file__).parent
 COOKIE = "libreta_token"
@@ -105,15 +103,25 @@ def editor_blocks(text: str, cache: Cache | None = None) -> list[dict]:
     return blocks
 
 
-def modules(directory: Path) -> list[str]:
-    """Top-level modules the document can import: the worker runs this same interpreter,
-    from the document's folder. The editor greys out imports of anything else.
-    Distributions' names too: namespace packages and editable installs with import hooks
-    escape iter_modules."""
-    names = set(sys.builtin_module_names)
-    names.update(m.name for m in pkgutil.iter_modules([str(directory), *sys.path]))
-    names.update(importlib.metadata.packages_distributions())
-    return sorted(names)
+# Run by the document's Python: importable top-level modules, as JSON. Distributions'
+# names too: namespace packages and editable installs with import hooks escape iter_modules.
+MODULES = """
+import importlib.metadata, json, pkgutil, sys
+names = set(sys.builtin_module_names)
+names.update(m.name for m in pkgutil.iter_modules([sys.argv[1], *sys.path]))
+names.update(importlib.metadata.packages_distributions())
+print(json.dumps(sorted(names)))
+"""
+
+
+def modules(directory: Path) -> list[str] | None:
+    """Top-level modules the document can import, asked to the Python its worker runs
+    (see worker.environment). The editor greys out imports of anything else; None if the
+    question fails (then nothing is greyed)."""
+    python, env = environment(directory)
+    command = [python, "-P", "-c", MODULES, str(directory)]
+    result = subprocess.run(command, capture_output=True, text=True, env=env, cwd=directory)
+    return json.loads(result.stdout) if result.returncode == 0 else None
 
 
 def _chop(text: str) -> str:
@@ -170,7 +178,7 @@ class Session:
         with self.lock:
             self.interrupted = False
             self.cache.prune(set(keys))
-            alive = self.worker is not None and self.worker.process.is_alive()
+            alive = self.worker is not None and self.worker.alive()
             if inline and alive and self.state[1] == keys[n]:  # already there: only evaluate
                 yield from evaluate(n)
                 return
@@ -203,7 +211,7 @@ class Session:
         if not self.lock.acquire(blocking=False):  # ponytail: no help while a block runs
             return []
         try:
-            if self.worker is None or not self.worker.process.is_alive():
+            if self.worker is None or not self.worker.alive():
                 self._new_worker()
             return self.worker.assist(kind, code, line, column)
         finally:
@@ -217,7 +225,7 @@ class Session:
 
     def interrupt(self) -> None:
         self.interrupted = True
-        if self.worker is not None and self.worker.process.is_alive():
+        if self.worker is not None and self.worker.alive():
             self.worker.interrupt()
 
     def restart(self) -> None:
@@ -377,7 +385,7 @@ def create_app(root: Path, token: str) -> Starlette:
     @contextlib.asynccontextmanager
     async def lifespan(app):
         yield
-        for session in sessions.values():  # else multiprocessing waits for the children
+        for session in sessions.values():  # no worker outlives the server
             await run_in_threadpool(session.restart)
 
     doc = "/edit/{doc:path}"

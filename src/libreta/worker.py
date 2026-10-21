@@ -1,33 +1,98 @@
 """One child process per document, holding the namespace where blocks are exec'd.
 
-The parent talks to it over a multiprocessing pipe. A block's output is streamed as
-``(mime, content)`` items, where mime is a real MIME type for displayed values or one of
-``stdout``, ``stderr`` and ``error`` (a formatted traceback).
+The child runs the Python of the document's project (see `environment`), not necessarily
+libreta's: a subprocess of that interpreter, talking to the parent over a socket with
+multiprocessing's Connection protocol. A block's output is streamed as ``(mime, content)``
+items, where mime is a real MIME type for displayed values or one of ``stdout``,
+``stderr`` and ``error`` (a formatted traceback).
 """
 
 import builtins
+import functools
+import importlib.util
 import linecache
-import multiprocessing
 import os
 import re
 import signal
+import socket
+import subprocess
 import sys
 import threading
 import traceback
 from collections.abc import Iterator
+from multiprocessing.connection import Connection
 from pathlib import Path
 
 from libreta import display
 
+# The child's first lines. Whatever the project's Python, libreta's own modules (and jedi,
+# for completion) come from libreta's installation, and nothing else of it leaks in.
+BOOT = """
+import importlib.machinery, sys
+from multiprocessing.connection import Connection
+own = dict(zip(("libreta", "jedi", "parso"), sys.argv[3:]))
+class Own:
+    @staticmethod
+    def find_spec(name, path=None, target=None):
+        if path is None and name in own:
+            return importlib.machinery.PathFinder.find_spec(name, [own[name]])
+sys.meta_path.insert(0, Own)
+from libreta.worker import _main
+_main(Connection(int(sys.argv[1])), sys.argv[2])
+"""
+
+
+def _home(package: str) -> str:
+    """The folder a package is imported from, without importing it."""
+    return str(Path(importlib.util.find_spec(package).origin).parent.parent)
+
+
+def environment(directory: Path) -> tuple[str, dict[str, str] | None]:
+    """The Python of the document's project, with its environment variables: the nearest
+    .venv from the document's folder up (PEP 704), else the activated environment, else
+    libreta's own Python. Looked up each time: a .venv made meanwhile counts."""
+    directory = Path(os.path.abspath(directory))
+    candidates = [d / ".venv" for d in (directory, *directory.parents)]
+    if active := os.environ.get("VIRTUAL_ENV"):
+        candidates.append(Path(active))
+    for venv in candidates:
+        python = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        if (venv / "pyvenv.cfg").is_file() and python.is_file() and _supported(str(python)):
+            path = f"{python.parent}{os.pathsep}{os.environ.get('PATH', '')}"
+            env = os.environ | {"VIRTUAL_ENV": str(venv), "PATH": path}  # as if activated
+            env.pop("PYTHONHOME", None)
+            return str(python), env
+    return sys.executable, None
+
+
+@functools.cache
+def _supported(python: str) -> bool:
+    check = "import sys; sys.exit(sys.version_info < (3, 12))"
+    if subprocess.run([python, "-c", check]).returncode == 0:
+        return True
+    print(f"libreta: {python} es anterior a Python 3.12; se usa el de libreta", file=sys.stderr)
+    return False
+
 
 class Worker:
     def __init__(self, path: Path):
-        ctx = multiprocessing.get_context("spawn")  # never fork the (threaded) server
-        self.conn, child = ctx.Pipe()
-        self.process = ctx.Process(target=_main, args=(child, str(path)))
-        self.process.start()
-        child.close()
+        python, env = environment(Path(path).parent)
+        parent, child = socket.socketpair()
+        with child:
+            own = [_home(package) for package in ("libreta", "jedi", "parso")]
+            self.process = subprocess.Popen(
+                # -P: no folder of the server in sys.path; _main puts the document's there.
+                [python, "-P", "-c", BOOT, str(child.fileno()), str(path), *own],
+                pass_fds=[child.fileno()],
+                env=env,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,  # Ctrl+C in the server's terminal is not for it
+            )
+        self.conn = Connection(parent.detach())
         self.unfinished = False  # a run whose output was not read to the end
+
+    def alive(self) -> bool:
+        return self.process.poll() is None
 
     def run(self, code: str, lineno: int, source: str) -> Iterator[tuple[str, str | bytes]]:
         """Execute `code`, whose first line is line `lineno` of the document `source`."""
@@ -77,10 +142,11 @@ class Worker:
 
     def close(self) -> None:
         self.conn.close()  # the child sees EOF and exits
-        self.process.join(1)
-        if self.process.is_alive():
+        try:
+            self.process.wait(1)
+        except subprocess.TimeoutExpired:
             self.process.kill()
-            self.process.join()
+            self.process.wait()
 
 
 # Child side. SIGINT raises KeyboardInterrupt only while a block runs, and never while the
