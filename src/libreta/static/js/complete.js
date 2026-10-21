@@ -1,16 +1,21 @@
-// Completion list and call signatures from jedi (DESIGN §6.6). The list is fetched on "." and
-// '["' (or Ctrl+Space) and then filtered here while the name is typed; the signature on "("
-// and ",". Both sit at the caret, found with the <pre> marker (caretPoint). Accepting inserts
-// through execCommand, so undo keeps working.
+// Completion list and call signatures from jedi (DESIGN §6.6). The list is fetched when a
+// name starts, on "." and '["' (or Ctrl+Space), and then filtered here while the name is
+// typed; the signature on "(" and ",". Both sit at the caret, found with the <pre> marker
+// (caretPoint). Accepting inserts through execCommand, so undo keeps working.
+//
+// A list that opened on its own while typing a name takes Enter only once an item has been
+// chosen with the arrows: Enter at the end of a line must stay a line break. Tab always takes.
 
 import * as api from "./api.js";
 import { caretPoint, isPython, locate } from "./blocks.js";
 
 const DEBOUNCE = 120; // ms
 const TYPING = /^[\w"']*$/u; // what may be typed while the list stays open (names, keys)
+const WORD = /(?<!\w)[^\W\d]\w*$/u; // a name being typed, right before the caret
 const MOVES = new Set(["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"]);
 
-let menu = null; // {textarea, pos, items, shown, index, element}; pos: caret when fetched
+// {textarea, pos, items, shown, index, element, explicit, chosen}; pos: caret when fetched
+let menu = null;
 let tip = null; // the signature element
 const timers = { complete: 0, signature: 0 };
 const latest = { complete: 0, signature: 0 }; // only the latest answer of each kind shows
@@ -19,7 +24,7 @@ const latest = { complete: 0, signature: 0 }; // only the latest answer of each 
 export function handleAssistKey(event, textarea) {
   const mod = event.ctrlKey || event.metaKey;
   if (mod && event.code === "Space") {
-    request("complete", textarea, 0);
+    request("complete", textarea, { delay: 0 });
     return true;
   }
   if (MOVES.has(event.key) || (mod && event.key === "Enter")) closeAssist();
@@ -27,9 +32,11 @@ export function handleAssistKey(event, textarea) {
     const plain = !mod && !event.shiftKey && !event.altKey;
     if ((event.key === "ArrowDown" || event.key === "ArrowUp") && plain) {
       select(menu.index + (event.key === "ArrowDown" ? 1 : -1));
+      menu.chosen = true;
       return true;
     }
-    if ((event.key === "Tab" || event.key === "Enter") && plain) {
+    if (event.key === "Enter" && plain && !(menu.explicit || menu.chosen)) closeMenu();
+    else if ((event.key === "Tab" || event.key === "Enter") && plain) {
       accept(menu.shown[menu.index]);
       return true;
     }
@@ -50,6 +57,9 @@ export function handleAssistInput(event) {
   const data = event.data ?? ""; // null for deletions
   const before = textarea.value.slice(0, textarea.selectionStart);
   if (data.endsWith(".") || /\[["']$/.test(before)) request("complete", textarea);
+  else if (!menu && /^\w$/u.test(data) && WORD.test(before)) {
+    request("complete", textarea, { implicit: true });
+  }
   if (data === "(" || data === ",") request("signature", textarea);
   else if (data === ")") closeTip();
 }
@@ -59,12 +69,14 @@ export function closeAssist() {
   closeTip();
 }
 
-function request(kind, textarea, delay = DEBOUNCE) {
+function request(kind, textarea, { delay = DEBOUNCE, implicit = false } = {}) {
   clearTimeout(timers[kind]);
   if (!helpful(textarea)) return;
   timers[kind] = setTimeout(async () => {
-    const id = ++latest[kind];
     const pos = textarea.selectionStart;
+    // A line break or a space typed during the debounce: no name is being typed any more.
+    if (implicit && !WORD.test(textarea.value.slice(0, pos))) return;
+    const id = ++latest[kind];
     const { text, line, column } = point(textarea);
     let items;
     try {
@@ -73,7 +85,7 @@ function request(kind, textarea, delay = DEBOUNCE) {
       return; // no help is not worth an alert
     }
     if (id !== latest[kind] || document.activeElement !== textarea) return;
-    if (kind === "complete") openMenu(textarea, pos, items);
+    if (kind === "complete") openMenu(textarea, pos, items, !implicit);
     else showTip(textarea, items[0]);
   }, delay);
 }
@@ -101,7 +113,7 @@ function place(element, textarea, above) {
   element.style.top = `${above ? y : y + lineHeight}px`;
 }
 
-function openMenu(textarea, pos, items) {
+function openMenu(textarea, pos, items, explicit) {
   closeMenu();
   const element = document.createElement("ul");
   element.className = "complete";
@@ -112,18 +124,20 @@ function openMenu(textarea, pos, items) {
     if (li) accept(menu.shown[li.dataset.i]);
   });
   document.body.append(element);
-  menu = { textarea, pos, items, shown: [], index: 0, element };
+  menu = { textarea, pos, items, shown: [], index: 0, element, explicit, chosen: false };
   filter();
 }
 
-// Names that still match what was typed since the list came; _private ones only for "_".
+// Names that still match what was typed since the list came and would add something;
+// _private ones only once "_" is typed.
 function filter() {
   const { textarea, pos, items, element } = menu;
   const typed = textarea.value.slice(pos, textarea.selectionStart);
   if (textarea.selectionStart < pos || !TYPING.test(typed)) return closeMenu();
   menu.shown = items.filter((c) => {
     const prefix = c.name.slice(0, c.name.length - c.complete.length) + typed;
-    return c.complete.startsWith(typed) && (!c.name.startsWith("_") || prefix.startsWith("_"));
+    const matches = c.complete.startsWith(typed) && c.complete !== typed;
+    return matches && (!c.name.startsWith("_") || prefix.startsWith("_"));
   });
   if (!menu.shown.length) return closeMenu();
   element.replaceChildren(
@@ -138,15 +152,20 @@ function filter() {
       return li;
     }),
   );
-  select(0);
   place(element, textarea, false);
+  select(0);
 }
 
 function select(index) {
   const items = menu.element.children;
   menu.index = (index + items.length) % items.length;
   for (const li of items) li.classList.toggle("selected", li.dataset.i == menu.index);
-  items[menu.index].scrollIntoView({ block: "nearest" });
+  // Scroll the list only: scrollIntoView would also scroll the page.
+  const { element } = menu;
+  const li = items[menu.index];
+  if (li.offsetTop < element.scrollTop) element.scrollTop = li.offsetTop;
+  else if (li.offsetTop + li.offsetHeight > element.scrollTop + element.clientHeight)
+    element.scrollTop = li.offsetTop + li.offsetHeight - element.clientHeight;
 }
 
 function accept(completion) {

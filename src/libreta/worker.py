@@ -8,6 +8,7 @@ The parent talks to it over a multiprocessing pipe. A block's output is streamed
 import linecache
 import multiprocessing
 import os
+import re
 import signal
 import sys
 import threading
@@ -207,12 +208,15 @@ def _assist(kind: str, namespace: dict, code: str, line: int, column: int) -> li
                 for s in script.get_signatures(line, column)
             ]
         before = code.splitlines()[line - 1][:column] if code else ""
+        word = re.search(r"\w*\Z", before)[0]
+        # What jedi takes as typed must be what is typed, and cover the whole word: it also
+        # matches other cases (os.pa -> PathLike, whose `complete` would give "pathLike")
+        # and, in a comment, offers every name as if nothing had been typed.
         return [
             {"name": c.name, "complete": c.complete, "type": c.type}
             for c in script.complete(line, column)
-            # jedi also matches other cases (os.pa -> PathLike), but its `complete` assumes
-            # the name's own case: inserting it would give "pathLike".
-            if before.endswith(c.name[: len(c.name) - len(c.complete)])
+            if before.endswith(typed := c.name[: len(c.name) - len(c.complete)])
+            and typed.endswith(word)
         ]
     except Exception:  # jedi on half-written code: no help rather than an error
         return []

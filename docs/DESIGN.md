@@ -240,7 +240,8 @@ y `getBoundingClientRect()`.
   estático con los objetos vivos: completa columnas de un DataFrame ya cargado y también
   imports que aún no se han ejecutado. Firmas con `get_signatures()`.
 - El código que se pasa a jedi es el de todos los bloques de Python hasta el actual.
-- Disparo: al escribir `.` o `["`, y con Ctrl+Espacio; con debounce. La lista llega una
+- Disparo: al empezar a escribir un nombre, al escribir `.` o `["`, y con Ctrl+Espacio;
+  con debounce. En comentarios no hay lista. La lista llega una
   vez y el cliente la filtra mientras se sigue escribiendo el nombre; los nombres con `_`
   inicial solo aparecen si se ha escrito `_`. Las firmas se piden al escribir `(` y `,`.
 - Mientras se ejecuta un bloque no hay ayuda: el worker está ocupado.
@@ -248,7 +249,8 @@ y `getBoundingClientRect()`.
 - Transporte: `fetch` con JSON (no HTMX).
 - Posición del desplegable: `<span>` marcador en la posición del cursor dentro del `<pre>`.
 - Flechas para navegar, Tab o Enter para aceptar (vía `execCommand`), Escape para cerrar.
-  Con el desplegable abierto, Enter acepta; Ctrl+Enter sigue ejecutando.
+  Si la lista se abrió sola al escribir un nombre, Enter solo acepta tras elegir con las
+  flechas (si no, es un salto de línea); Tab acepta siempre. Ctrl+Enter sigue ejecutando.
 
 ### 6.7 Limitación asumida
 
