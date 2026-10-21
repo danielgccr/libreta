@@ -146,7 +146,8 @@ de backends de la versión de matplotlib instalada). Su `show()` emite las figur
 en ese punto del stream y las cierra. Al terminar el bloque se emiten las figuras que queden
 abiertas sin `plt.show()`.
 
-- Formato por defecto SVG; PNG con dpi alto como alternativa.
+- Formato por defecto SVG; PNG con dpi alto como alternativa, y automáticamente cuando el
+  SVG pasaría de 1 MB (unos 10.000 puntos), que como PNG ocupa unos 50 KB.
 - `figsize` por defecto acorde con el ancho de la columna.
 - Figura transparente (o `facecolor` igual a `--code-bg`) para que el gráfico parezca
   impreso sobre el bloque gris.
