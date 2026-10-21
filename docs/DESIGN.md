@@ -33,7 +33,7 @@ Markdown. Nada de celdas visibles: el documento parece una hoja continua.
 | Ctrl+Enter | En un bloque de Python: lo ejecuta, pinta la salida y lleva el foco al bloque de Markdown siguiente, creándolo si no existe. En Markdown: evalúa sus expresiones `py` (§4.7). |
 | ArrowUp / ArrowDown | En la primera o última línea de un bloque, saltan al bloque anterior o siguiente. La salida de un bloque nunca recibe foco. |
 | Backspace | Al inicio de un bloque de Python vacío, lo elimina y fusiona los bloques de Markdown adyacentes. |
-| Ctrl+A / Ctrl+C | Seleccionan y copian el documento completo como Markdown (con sus fences), no solo el bloque activo. |
+| Ctrl+A / Ctrl+C | Seleccionan y copian el documento completo como Markdown (con sus fences), no solo el bloque activo. En un bloque de Python, el primer Ctrl+A selecciona su código; el segundo, el documento. |
 | Ctrl+S | Guarda. |
 | Ctrl+Espacio | Autocompletado (además del disparo automático, ver §6.6). |
 | Escape | Con un bloque en ejecución, lo interrumpe (`KeyboardInterrupt`). |

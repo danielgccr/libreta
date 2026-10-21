@@ -206,6 +206,11 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (mod && !event.altKey && key === "a" && event.target !== titleInput) {
+    // In a Python block the native one selects the code; once all of it is, the document.
+    const t = event.target;
+    if (t.closest(".block.py") && (t.selectionStart > 0 || t.selectionEnd < t.value.length)) {
+      return;
+    }
     event.preventDefault();
     selectAll(true);
     return;
