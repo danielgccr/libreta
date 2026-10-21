@@ -29,8 +29,8 @@ el formato de fichero o la caché:
 ## Stack
 
 - Backend: Python >= 3.12, Starlette, uvicorn, Jinja2, jedi. Ninguna dependencia más sin preguntar.
-- Frontend: HTMX 2 vendorizado en `static/` (sin CDN, funciona offline) y JavaScript vanilla
-  en módulos ES nativos. CSS escrito a mano.
+- Frontend: JavaScript vanilla en módulos ES nativos, sin dependencias (funciona offline).
+  CSS escrito a mano.
 - Sin paso de build, sin npm, sin frameworks. No usar CodeMirror, Monaco, Prism,
   highlight.js, React ni similares: el editor y el resaltado son propios y ese es el punto.
 - Pandoc es una dependencia externa opcional, solo para `libreta export`.
@@ -60,7 +60,6 @@ src/libreta/
   knit.py        # Markdown "tejido" + llamada opcional a pandoc
   templates/
   static/
-    htmx.min.js
     js/          # editor.js, blocks.js, keys.js, py-highlight.js, md-highlight.js, complete.js, api.js
     css/         # tokens.css, editor.css, export.css
 tests/

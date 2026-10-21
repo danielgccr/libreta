@@ -318,7 +318,7 @@ en un documento de cientos de bloques, cada medición fuerza una maquetación.
   inicial solo aparecen si se ha escrito `_`. Las firmas se piden al escribir `(` y `,`.
 - Mientras se ejecuta un bloque no hay ayuda: el worker está ocupado.
 - Funciona también dentro de `` `py ...` `` en el Markdown.
-- Transporte: `fetch` con JSON (no HTMX).
+- Transporte: `fetch` con JSON.
 - Posición del desplegable: `<span>` marcador en la posición del cursor dentro del `<pre>`.
 - Flechas para navegar, Tab o Enter para aceptar (vía `execCommand`), Escape para cerrar.
   Shift+Enter cierra la lista y salta de línea (con la indentación de Enter). Ctrl+Enter
@@ -345,7 +345,7 @@ Ctrl+A / Ctrl+C sobre el documento completo (§2).
 
 Starlette con uvicorn. El cliente usa `fetch` en vanilla para todo (`api.js`): el
 documento llega como JSON incrustado en la página y el JS construye los bloques, así que
-hasta ahora no ha hecho falta intercambiar fragmentos HTML y HTMX no se usa.
+no hace falta intercambiar fragmentos HTML. HTMX estaba en el plan inicial y no llegó a hacer falta.
 
 El servidor sirve una carpeta (la raíz): un worker por documento abierto, creado al usarlo.
 Solo documentos `.md` dentro de la raíz; las rutas con `..` que salen de ella dan 404.
