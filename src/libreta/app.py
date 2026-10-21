@@ -2,6 +2,7 @@
 localhost (Host header, against DNS rebinding) and carry the session token."""
 
 import contextlib
+import html
 import json
 import os
 import secrets
@@ -10,6 +11,7 @@ import subprocess
 import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from string import Template
 from urllib.parse import parse_qs, quote
 
 from starlette.applications import Starlette
@@ -19,6 +21,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
 from starlette.responses import (
+    HTMLResponse,
     JSONResponse,
     PlainTextResponse,
     RedirectResponse,
@@ -27,7 +30,6 @@ from starlette.responses import (
 )
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
-from starlette.templating import Jinja2Templates
 
 from libreta.cache import GENESIS, Cache, chain, to_json
 from libreta.document import (
@@ -43,7 +45,12 @@ from libreta.worker import Worker, environment
 
 HERE = Path(__file__).parent
 COOKIE = "libreta_token"
-templates = Jinja2Templates(HERE / "templates")
+
+
+def page(template: str, status: int = 200, /, **values: str) -> HTMLResponse:
+    """templates/<template> with its $placeholders filled; the values go in already escaped."""
+    text = (HERE / "templates" / template).read_text(encoding="utf-8")
+    return HTMLResponse(Template(text).substitute(values), status_code=status)
 
 
 class TokenMiddleware:
@@ -305,19 +312,31 @@ def create_app(root: Path, token: str) -> Starlette:
 
     async def index(request: Request, name: str = "", error: str = ""):
         """The list; with `error`, the new-document form keeps `name` and says what failed."""
-        files = [
-            {
-                "href": "/edit/" + quote(rel),
-                "folder": rel.rpartition("/")[0] + "/" if "/" in rel else "",
-                "name": rel.rpartition("/")[2],
-                "when": when(mtime),
-                "iso": datetime.fromtimestamp(mtime).isoformat(timespec="minutes"),
-            }
-            for rel, mtime in await run_in_threadpool(markdown_files, root)
-        ]
-        context = {"root": root.name or str(root), "files": files, "name": name, "error": error}
-        status = 400 if error else 200
-        return templates.TemplateResponse(request, "index.html", context, status_code=status)
+        e = html.escape
+        files = []
+        for rel, mtime in await run_in_threadpool(markdown_files, root):
+            folder, _, file = rel.rpartition("/")
+            folder += "/" if folder else ""
+            iso = datetime.fromtimestamp(mtime).isoformat(timespec="minutes")
+            files.append(
+                f'<li>\n        <a href="/edit/{e(quote(rel))}">'
+                f'<span class="folder">{e(folder)}</span>{e(file)}</a>\n'
+                f'        <time datetime="{iso}">{e(when(mtime))}</time>\n      </li>'
+            )
+        return page(
+            "index.html",
+            400 if error else 200,
+            root=e(root.name or str(root)),
+            count=f"{len(files)} documento{'' if len(files) == 1 else 's'}",
+            name=e(name),
+            invalid=' aria-invalid="true" aria-describedby="new-error" autofocus' if error else "",
+            error=f'<p id="new-error" class="new-error" role="alert">{e(error)}</p>'
+            if error
+            else "",
+            files="<ol>\n      " + "\n      ".join(files) + "\n    </ol>"
+            if files
+            else '<p class="empty">No hay ficheros Markdown en esta carpeta.</p>',
+        )
 
     async def new(request: Request):
         """The index's form: create the document `name` (".md" optional, folders too) and
@@ -353,8 +372,19 @@ def create_app(root: Path, token: str) -> Starlette:
             "date": front_value(front, "date"),
             "modules": modules(path.parent),  # again on focus: GET .../modules
         }
-        context = {"name": path.name, "path": path.relative_to(root).as_posix(), "doc": doc}
-        return templates.TemplateResponse(request, "editor.html", context)
+        # Escaped so that no "</script>" or "<!--" in the text can end the <script>.
+        data = (
+            json.dumps(doc, sort_keys=True)
+            .replace("<", "\\u003c")
+            .replace(">", "\\u003e")
+            .replace("&", "\\u0026")
+        )
+        return page(
+            "editor.html",
+            name=html.escape(path.name),
+            path=html.escape(path.relative_to(root).as_posix()),
+            doc=data,
+        )
 
     async def put_doc(request: Request):
         """{text, title} -> the text as saved, its front matter and date: saving sets the

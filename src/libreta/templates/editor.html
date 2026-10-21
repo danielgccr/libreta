@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ name }} · libreta</title>
+  <title>$name · libreta</title>
   <link rel="stylesheet" href="/static/css/tokens.css">
   <link rel="stylesheet" href="/static/css/editor.css">
   <script type="module" src="/static/js/editor.js"></script>
 </head>
 <body>
   <header class="front">
-    <a class="path" href="/">{{ path }}<span class="visually-hidden">: volver a todos los documentos</span></a>
+    <a class="path" href="/">$path<span class="visually-hidden">: volver a todos los documentos</span></a>
     <input id="title" placeholder="Sin título" aria-label="Título" autocomplete="off">
     <p id="date"></p>
   </header>
   <main id="doc"></main>
   <div id="status" class="visually-hidden" aria-live="polite"></div>
-  <script type="application/json" id="doc-data">{{ doc|tojson }}</script>
+  <script type="application/json" id="doc-data">$doc</script>
 </body>
 </html>

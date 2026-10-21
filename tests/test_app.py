@@ -321,6 +321,18 @@ def test_index(tmp_path):
     assert b'<span class="folder">sub/</span>a.md' in body
 
 
+def test_pages_escape_names_and_text(tmp_path):
+    (tmp_path / "<i>.md").write_text("</script><!-- & ")
+    doc_app = create_app(tmp_path, "secret")
+    _, _, body = get(cookie="secret", app=doc_app)
+    assert b"<i>" not in body and b"&lt;i&gt;.md" in body
+    _, _, body = get(cookie="secret", path="/edit/<i>.md", app=doc_app)
+    assert (
+        b"<i>" not in body and body.count(b"</script>") == 2
+    )  # editor.js and the JSON: the page's own
+    assert b"\\u003c/script\\u003e\\u003c!-- \\u0026 " in body
+
+
 def test_only_markdown_under_root(tmp_path):
     (tmp_path / "doc.md").write_text("Hola\n")
     doc_app = create_app(tmp_path / "dentro", "secret")

@@ -5,7 +5,7 @@ Estado: aparcada (octubre de 2026). Para sopesar en el futuro; contradice el sta
 
 ## La idea
 
-Sustituir Starlette, uvicorn y Jinja2 por `http.server.ThreadingHTTPServer`, `json` y
+Sustituir Starlette y uvicorn por `http.server.ThreadingHTTPServer`, `json` y
 `http.cookies`. jedi quedaría como única dependencia del paquete.
 
 ## Por qué encaja
@@ -31,10 +31,10 @@ Medidas en el entorno de desarrollo (Python 3.13, Linux), mediana de tres arranq
 |---|---|---|---|
 | Python solo | 11,5 MB | — | — |
 | `http.server`, `json`, `http.cookies` | 17,4 MB | 13 ms | 0 |
-| Starlette + uvicorn + Jinja2 | 31,0 MB | 53 ms | 9 |
+| Starlette + uvicorn + Jinja2 (antes de quitar Jinja2) | 31,0 MB | 53 ms | 9 |
 
 Las dependencias que desaparecerían: starlette, anyio, idna, typing-extensions, uvicorn,
-click, h11, y jinja2 y markupsafe si la plantilla del editor pasa a ser un `str.replace`.
+click y h11. jinja2 y markupsafe ya no están: las plantillas son de `string.Template`.
 
 ## Ganancias
 
@@ -60,8 +60,6 @@ Unas 100 líneas propias en `app.py`, en lugar de lo que hoy da Starlette:
 - Respuesta en streaming de `/run`: con HTTP/1.0, cuerpo delimitado por el cierre de la
   conexión; detectar `BrokenPipeError` si el navegador se va y cerrar el generador (hoy
   Starlette lo abandona y el worker drena la salida pendiente).
-- Escapar el JSON del documento dentro de `<script>` (`<` → `<`), lo que hace hoy el
-  filtro `tojson` de Jinja2.
 - Apagado: `server.shutdown()` y matar el worker en un `finally` (hoy, el `lifespan`).
 
 Además:

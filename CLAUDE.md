@@ -28,7 +28,7 @@ el formato de fichero o la caché:
 
 ## Stack
 
-- Backend: Python >= 3.12, Starlette, uvicorn, Jinja2, jedi. Ninguna dependencia más sin preguntar.
+- Backend: Python >= 3.12, Starlette, uvicorn, jedi. Ninguna dependencia más sin preguntar.
 - Frontend: JavaScript vanilla en módulos ES nativos, sin dependencias (funciona offline).
   CSS escrito a mano.
 - Sin paso de build, sin npm, sin frameworks. No usar CodeMirror, Monaco, Prism,

@@ -126,7 +126,7 @@ uv run pytest
 uv run ruff check . && uv run ruff format .
 ```
 
-The backend is Starlette, uvicorn, Jinja2 and jedi. The editor is dependency-free
+The backend is Starlette, uvicorn and jedi. The editor is dependency-free
 JavaScript with no build step: textareas over a highlighted overlay, with hand-written
 tokenizers. The full design and its reasoning are in [docs/DESIGN.md](docs/DESIGN.md)
 (in Spanish).

@@ -346,6 +346,9 @@ Ctrl+A / Ctrl+C sobre el documento completo (§2).
 Starlette con uvicorn. El cliente usa `fetch` en vanilla para todo (`api.js`): el
 documento llega como JSON incrustado en la página y el JS construye los bloques, así que
 no hace falta intercambiar fragmentos HTML. HTMX estaba en el plan inicial y no llegó a hacer falta.
+Las dos páginas (la lista y el editor) son plantillas de `string.Template`, sin Jinja2: los
+valores llegan escapados con `html.escape`, y el JSON del documento con `<`, `>` y `&` como
+`\u003c`... para que un `</script>` del texto no cierre su `<script>`.
 
 El servidor sirve una carpeta (la raíz): un worker por documento abierto, creado al usarlo.
 Solo documentos `.md` dentro de la raíz; las rutas con `..` que salen de ella dan 404.
