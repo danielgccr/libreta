@@ -19,12 +19,14 @@ import {
 } from "./blocks.js";
 import { closeAssist, handleAssistInput, handleAssistKey } from "./complete.js";
 import { handlePythonKey } from "./keys.js";
+import { setModules } from "./py-highlight.js";
 
 const main = document.getElementById("doc");
 const titleInput = document.getElementById("title");
 const dateLine = document.getElementById("date");
 const doc = JSON.parse(document.getElementById("doc-data").textContent);
 main.dataset.finalNewline = doc.finalNewline ? "1" : "";
+setModules(doc.modules); // before the blocks paint
 // The YAML front matter is no block: its title is edited above the document and its date
 // is the last save's, stamped by the server. The rest of it is kept as it is, unseen.
 main.dataset.front = doc.front;

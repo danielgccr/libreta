@@ -2,10 +2,13 @@
 localhost (Host header, against DNS rebinding) and carry the session token."""
 
 import contextlib
+import importlib.metadata
 import json
 import os
+import pkgutil
 import secrets
 import shutil
+import sys
 import threading
 from datetime import date
 from pathlib import Path
@@ -98,6 +101,17 @@ def editor_blocks(text: str, cache: Cache | None = None) -> list[dict]:
                 item["values"] = cache.load_values(h)
             blocks.append(item)
     return blocks
+
+
+def modules(directory: Path) -> list[str]:
+    """Top-level modules the document can import: the worker runs this same interpreter,
+    from the document's folder. The editor greys out imports of anything else.
+    Distributions' names too: namespace packages and editable installs with import hooks
+    escape iter_modules."""
+    names = set(sys.builtin_module_names)
+    names.update(m.name for m in pkgutil.iter_modules([str(directory), *sys.path]))
+    names.update(importlib.metadata.packages_distributions())
+    return sorted(names)
 
 
 def _chop(text: str) -> str:
@@ -236,6 +250,8 @@ def create_app(path: Path, token: str) -> Starlette:
             "front": front,
             "title": front_value(front, "title") or "",
             "date": front_value(front, "date"),
+            # ponytail: read once per page load; reload after installing a package.
+            "modules": modules(path.parent.resolve()),
         }
         return templates.TemplateResponse(request, "editor.html", {"name": path.name, "doc": doc})
 

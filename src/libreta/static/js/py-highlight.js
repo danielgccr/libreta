@@ -1,6 +1,7 @@
 // Python tokenizer for the overlay. Colours only (DESIGN §6.2). One regex pass over the
 // whole block: a triple-quoted string spanning lines is a single match, so no state is
-// carried by hand. f-strings are coloured whole as strings (v1).
+// carried by hand. f-strings are coloured whole as strings (v1). Imports of modules the
+// environment lacks are greyed out (setModules).
 
 const KEYWORDS = new Set(
   ("False None True and as assert async await break class continue def del elif else " +
@@ -33,6 +34,12 @@ const TOKEN = new RegExp(
   "gu",
 );
 
+let modules = null; // Set of importable top-level modules; null: unknown, nothing greyed
+
+export function setModules(names) {
+  modules = new Set(names);
+}
+
 export function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -40,6 +47,7 @@ export function escapeHtml(s) {
 export function highlightPython(text) {
   let html = "";
   let prev = ""; // previous significant token
+  let importing = null; // "import", "from" (module next) or "names" (from x import ...)
   TOKEN.lastIndex = 0;
   for (let m; (m = TOKEN.exec(text)); ) {
     const g = m.groups;
@@ -54,7 +62,13 @@ export function highlightPython(text) {
         value = "@"; // the matrix-multiplication operator
         TOKEN.lastIndex = m.index + 1;
       }
-    } else if (g.name) cls = nameClass(value, prev, text, m.index);
+    } else if (g.name) {
+      cls = nameClass(value, prev, text, m.index);
+      const head = importing === "from" ? prev === "from" : importing === "import" && /^(import|,)$/.test(prev);
+      if (head && modules && !modules.has(value)) cls = "missing"; // first name of a.b.c
+      if (value === "import") importing = importing === "from" ? "names" : "import";
+      else if (value === "from" && atLineStart(text, m.index)) importing = "from"; // not yield from
+    } else if (importing && /[\n;]/.test(value)) importing = null;
     html += cls ? `<span class="tok-${cls}">${escapeHtml(value)}</span>` : escapeHtml(value);
     if (!g.com && !/^\s/.test(value)) prev = value;
   }

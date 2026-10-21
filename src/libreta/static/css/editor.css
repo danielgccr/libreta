@@ -273,6 +273,7 @@ body {
 .tok-num { color: var(--hl-number); }
 .tok-com { color: var(--hl-comment); }
 .tok-deco { color: var(--hl-decorator); }
+.tok-missing { color: var(--hl-comment); } /* imported, but not in the environment */
 
 /* Markdown */
 .md-h { color: var(--text-strong); }

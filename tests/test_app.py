@@ -7,7 +7,7 @@ from pathlib import Path
 
 from test_document import PIECES
 
-from libreta.app import Session, create_app, editor_blocks, save
+from libreta.app import Session, create_app, editor_blocks, modules, save
 from libreta.document import parse
 
 app = create_app(Path("doc.md"), "secret")
@@ -291,3 +291,10 @@ def test_complete_and_signature(tmp_path):
         assert json.loads(body)[0]["name"] == "round"
     finally:
         post_json(doc_app, "/restart", {})
+
+
+def test_modules(tmp_path):
+    (tmp_path / "local_helper.py").write_text("")
+    names = set(modules(tmp_path))
+    assert {"json", "sys", "starlette", "local_helper"} <= names
+    assert "no_such_module_here" not in names

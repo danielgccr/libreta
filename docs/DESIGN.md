@@ -227,6 +227,10 @@ bordes ni separaciones visibles entre bloques de Markdown.
 Tokenizador propio en JS, solo para Python: keywords (incluidas las soft keywords `match`,
 `case`, `type`), builtins, números (`1_000`, `0x1F`, `1e-3`, `2j`), comentarios, decoradores,
 nombres tras `def` y `class`, y strings con prefijos (`r`, `b`, `f`, `rb`, `fr`...). Los
+módulos importados que el entorno no tiene (`import pandas` sin pandas instalado) van en
+gris: el servidor manda al cargar la página los módulos importables (`pkgutil` sobre la
+carpeta del documento y `sys.path`, más los de las distribuciones instaladas) y el
+tokenizador mira el primer nombre de cada `import`/`from`. Los
 triple-quoted abarcan varias líneas, así que el tokenizador arrastra estado entre líneas.
 En v1 un f-string se colorea entero como string.
 
