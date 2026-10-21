@@ -7,6 +7,7 @@ import {
   clearOutput,
   createBlock,
   focusBlock,
+  insertFootnote,
   insertPython,
   isPython,
   locate,
@@ -252,6 +253,11 @@ document.addEventListener("keydown", (event) => {
     markStale(python); // a new block changes the chain
     paintNotesNear(python);
     showDirty();
+    return;
+  }
+  if (mod && event.altKey && event.code === "KeyF" && !isPython(block)) {
+    event.preventDefault();
+    insertFootnote(main, textarea);
     return;
   }
   if (mod && event.key === "Enter") {

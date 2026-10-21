@@ -30,6 +30,7 @@ Markdown. Nada de celdas visibles: el documento parece una hoja continua.
 | Atajo | Efecto |
 |---|---|
 | Ctrl+Alt+I | Inserta un bloque de Python. A mitad de un bloque de Markdown, lo parte por el cursor e inserta el de Python en medio. (Mismo atajo que "insertar chunk" en RStudio.) |
+| Ctrl+Alt+F | En Markdown, inserta una nota al pie: `[^n]` en el cursor (`n`, el primer número libre del documento) y su definición `[^n]: ` tras el párrafo, donde queda el cursor. (Mismo atajo que en Word.) |
 | Ctrl+Enter | En un bloque de Python: lo ejecuta, pinta la salida y lleva el foco al bloque de Markdown siguiente, creándolo si no existe. En Markdown: evalúa sus expresiones `py` (§4.7). |
 | ArrowUp / ArrowDown | En la primera o última línea de un bloque, saltan al bloque anterior o siguiente. La salida de un bloque nunca recibe foco. |
 | Backspace | Al inicio de un bloque de Python vacío, lo elimina y fusiona los bloques de Markdown adyacentes. |
@@ -285,7 +286,8 @@ corchetes, el `^` y el `[^1]:` de la definición en `--text-muted`, la etiqueta 
 referencia en `--accent`. La etiqueta admite espacios (`[^la nota]`) y, mientras se
 escribe, un `[^` sin cierre en su línea colorea el resto como etiqueta. Las notas en línea `^[…]` no: GitHub no las lee y el lector
 `commonmark_x` de Pandoc tampoco. En el editor la nota se queda donde se escribe; el margen
-es de los valores `py` (§6.5).
+es de los valores `py` (§6.5). Pandoc numera las notas por orden de aparición, así que el número
+que pone Ctrl+Alt+F (§2) es solo una etiqueta: no hay que renumerar al mover texto.
 
 ### 6.5 Valores inline al margen
 

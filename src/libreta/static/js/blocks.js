@@ -153,6 +153,21 @@ export function insertPython(main, textarea) {
   focusBlock(python, "start");
 }
 
+// Ctrl+Alt+F in Markdown: a footnote [^n] at the caret, n the next free number, and its
+// definition after the paragraph, where the caret goes. One insertText: one undo step.
+// Pandoc numbers notes in order of appearance, so n is only a label.
+export function insertFootnote(main, textarea) {
+  const used = [...main.querySelectorAll(".block.md textarea")].flatMap((t) =>
+    [...t.value.matchAll(/\[\^(\d+)\]/g)].map((m) => Number(m[1])),
+  );
+  const label = `[^${Math.max(0, ...used) + 1}]`;
+  const { value, selectionEnd: pos } = textarea;
+  const blank = value.slice(pos).search(/\n[ \t]*(?:\n|$)/); // end of the paragraph
+  const end = blank < 0 ? value.length : pos + blank;
+  textarea.setSelectionRange(pos, end);
+  document.execCommand("insertText", false, `${label}${value.slice(pos, end)}\n\n${label}: `);
+}
+
 // Backspace in an empty Python block: remove it and join the Markdown around it.
 export function removePython(block) {
   const prev = block.previousElementSibling;
