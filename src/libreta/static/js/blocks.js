@@ -172,7 +172,7 @@ export function insertFootnote(main, textarea) {
   document.execCommand("insertText", false, `${label}${value.slice(pos, end)}\n\n${label}: `);
 }
 
-// Backspace in an empty Python block: remove it and join the Markdown around it.
+// Backspace or Delete on an empty Python block: remove it and join the Markdown around it.
 export function removePython(block) {
   const prev = block.previousElementSibling;
   const next = block.nextElementSibling;

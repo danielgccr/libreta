@@ -17,6 +17,7 @@ import {
   removePython,
   revealCaret,
   serialize,
+  textareaOf,
 } from "./blocks.js";
 import { closeAssist, handleAssistInput, handleAssistKey } from "./complete.js";
 import { handlePythonKey } from "./keys.js";
@@ -125,6 +126,15 @@ function paintNotesNear(block) {
 function markStale(block, after = false) {
   for (let b = after ? block.nextElementSibling : block; b; b = b.nextElementSibling)
     if (isPython(b)) b.classList.add("stale");
+}
+
+// Backspace or Delete on an empty Python block: it goes and the Markdown around it joins.
+function dropPython(python) {
+  markStale(python, true);
+  removePython(python);
+  normalize(main);
+  paintNotesNear(document.activeElement.closest(".block"));
+  showDirty();
 }
 
 // Ctrl+Enter: a Python block runs; in Markdown, its `py` expressions are evaluated. Runs
@@ -270,14 +280,21 @@ document.addEventListener("keydown", (event) => {
     }
     return;
   }
+  // Delete at the end of Markdown, or in an empty Python block, removes that empty block
+  // like Backspace does from inside it.
+  if (event.key === "Delete" && !mod && !event.shiftKey && !event.altKey) {
+    const atEnd = textarea.selectionStart === textarea.value.length && textarea.selectionEnd === textarea.value.length;
+    const python = isPython(block) ? block : atEnd && block.nextElementSibling;
+    if (python && isPython(python) && textareaOf(python).value === "") {
+      event.preventDefault();
+      dropPython(python);
+      return;
+    }
+  }
   if (isPython(block)) {
     if (event.key === "Backspace" && !mod && textarea.value === "") {
       event.preventDefault();
-      markStale(block, true);
-      removePython(block);
-      normalize(main);
-      paintNotesNear(document.activeElement.closest(".block"));
-      showDirty();
+      dropPython(block);
       return;
     }
     if (handlePythonKey(event, textarea)) {
