@@ -14,7 +14,9 @@ from libreta.document import (
     substitute,
 )
 
-EJEMPLOS = sorted((Path(__file__).parent.parent / "ejemplos").glob("*.md"))
+EJEMPLOS = sorted(  # the documents, not what `libreta export --keep-md` leaves next to them
+    p for p in (Path(__file__).parent.parent / "ejemplos").glob("*.md") if ".knit." not in p.name
+)
 
 
 def kinds(text):

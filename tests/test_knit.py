@@ -59,5 +59,14 @@ def test_export_html(tmp_path, capsys):
     html = (tmp_path / "doc.html").read_text()
     assert 'class="chunk"' in html and "ZeroDivisionError" in html and "<math" in html
     assert "--code-bg" in html  # tokens.css and export.css embedded
-    assert (tmp_path / "doc.knit.md").exists()
+    assert not (tmp_path / "doc.knit.md").exists()  # converted: the intermediate goes
     assert "línea 3: el bloque falla" in capsys.readouterr().err
+    (tmp_path / "doc_files").mkdir()
+    (tmp_path / "doc_files" / "mio.txt").write_text("")  # not ours: kept, and its folder
+    path.write_text("```python\nimport matplotlib.pyplot as plt\nplt.plot([1]);\n```\n")
+    assert main(["export", str(path)]) == 0
+    assert [p.name for p in (tmp_path / "doc_files").iterdir()] == ["mio.txt"]
+    assert main(["export", str(path), "--keep-md"]) == 0
+    assert (tmp_path / "doc.knit.md").exists() and (
+        tmp_path / "doc_files" / "figura-1.svg"
+    ).exists()

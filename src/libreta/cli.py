@@ -12,7 +12,7 @@ import uvicorn
 from libreta.app import create_app
 from libreta.cache import GENESIS, Cache, chain
 from libreta.document import expressions, front_value, parse, split_front_matter
-from libreta.knit import complete, knit
+from libreta.knit import complete, knit, remove_figures
 from libreta.worker import Worker
 
 HERE = Path(__file__).parent
@@ -34,11 +34,14 @@ def main(argv: list[str] | None = None) -> int:
     export_parser.add_argument(
         "--css", type=Path, action="append", default=[], help="extra style sheet (HTML)"
     )
+    export_parser.add_argument(
+        "--keep-md", action="store_true", help="keep the knitted Markdown and its figures"
+    )
     args = parser.parse_args(argv)
     if args.command == "run":
         return run(args.path)
     if args.command == "export":
-        return export(args.path, args.to, args.css)
+        return export(args.path, args.to, args.css, args.keep_md)
     edit(args.path)
     return 0
 
@@ -96,9 +99,11 @@ def run(path: Path, keep_going: bool = False) -> int:
     return status
 
 
-def export(path: Path, to: str, css: list[Path]) -> int:
+def export(path: Path, to: str, css: list[Path], keep_md: bool = False) -> int:
     """Knit the document from its cache (running it first if the cache is incomplete) into
-    <name>.knit.md, and convert that with Pandoc when it is installed (DESIGN §10).
+    <name>.knit.md, and convert that with Pandoc when it is installed (DESIGN §10). The
+    knitted Markdown and its figures go once converted (the output embeds them), unless
+    `keep_md`; without Pandoc, or if it fails, they are what is left.
     Errors stay in the document, as in the editor; they make the exit status 1."""
     for file in [path, *css]:
         if not file.is_file():
@@ -132,6 +137,9 @@ def export(path: Path, to: str, css: list[Path]) -> int:
             command += ["--css", str(sheet.resolve())]
     if status := subprocess.run(command, cwd=path.parent).returncode:
         return status
+    if not keep_md:
+        knitted.unlink()
+        remove_figures(path)
     print(f"libreta: {output}")
     return 1 if problems else 0
 

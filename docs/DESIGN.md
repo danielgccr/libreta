@@ -344,8 +344,10 @@ la caché (valores `py` sustituidos, figuras como ficheros enlazados, salida de 
 fences, HTML de tablas incrustado), y Pandoc lo convierte con `export.css`. Sin Pandoc,
 `libreta export` deja el Markdown tejido.
 
-- Ficheros junto al documento: `doc.knit.md`, las figuras en `doc_files/` y `doc.html` (o
-  `doc.pdf`).
+- Ficheros junto al documento: `doc.html` (o `doc.pdf`). El Markdown tejido `doc.knit.md` y
+  sus figuras en `doc_files/` se borran tras convertir (el HTML las lleva dentro); se
+  quedan sin Pandoc, si Pandoc falla o con `--keep-md`. De `doc_files/` solo se borran las
+  figuras de libreta, y la carpeta si queda vacía.
 - Cada bloque de Python con su salida va en un div `::: {.chunk}`: el bloque gris del
   editor. Texto en fences `{.output}` (`.stderr`, `.error`), HTML como bloque crudo
   `{=html}`, `_repr_markdown_` tal cual, figuras con `{width=NN%}` a la escala del editor.

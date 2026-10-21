@@ -7,6 +7,7 @@ HTML as a raw ``{=html}`` block, Markdown as is, figures as files linked from
 """
 
 import base64
+import contextlib
 import mimetypes
 import re
 from pathlib import Path
@@ -43,9 +44,7 @@ def knit(path: Path) -> tuple[str, list[str]]:
     parsed = parse(source)
     keys = [GENESIS, *chain(b.code for b in parsed if b.kind == "python")]
     cache = Cache(path)
-    files = path.with_name(f"{path.stem}_files")
-    for old in files.glob("figura-*"):
-        old.unlink()
+    files = remove_figures(path)
     problems: list[str] = []
     figures = 0
     point = 0  # the point of the document: keys[point] is the state here
@@ -87,6 +86,17 @@ def knit(path: Path) -> tuple[str, list[str]]:
                 parts.append(f"![]({files.name}/{name}){_width(mime, content)}\n")
         out.append("\n::: {.chunk}\n" + "\n".join(parts) + ":::\n\n")
     return "".join(out), problems
+
+
+def remove_figures(path: Path) -> Path:
+    """Delete the figures a knit wrote, and their folder if that leaves it empty (anything
+    else in it is not ours). Returns the folder."""
+    files = path.with_name(f"{path.stem}_files")
+    for figure in files.glob("figura-*"):
+        figure.unlink()
+    with contextlib.suppress(OSError):
+        files.rmdir()
+    return files
 
 
 def _merge(items: list[dict]) -> list[tuple[str, str | bytes]]:
