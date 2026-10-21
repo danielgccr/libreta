@@ -211,6 +211,8 @@ export function clearOutput(block) {
   block.querySelector(".output").replaceChildren();
 }
 
+const FIGURE_WIDTH = 6.8 * 96; // px: figure.figsize in libreta/_mpl.py, in CSS pixels
+
 export function appendOutput(block, { mime, content, base64 }) {
   const output = block.querySelector(".output");
   const last = output.lastElementChild;
@@ -225,6 +227,9 @@ export function appendOutput(block, { mime, content, base64 }) {
   } else if (mime.startsWith("image/")) {
     element = new Image(); // <img>, not inline SVG: matplotlib's ids would clash between figures
     element.alt = "";
+    // SVG at the scale where a default matplotlib figure (6.8in) fills the block.
+    if (mime === "image/svg+xml")
+      element.onload = () => (element.style.width = `${(100 * element.naturalWidth) / FIGURE_WIDTH}%`);
     element.src = base64
       ? `data:${mime};base64,${base64}`
       : `data:${mime};charset=utf-8,${encodeURIComponent(content)}`;

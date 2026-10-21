@@ -18,7 +18,10 @@ FigureManager = FigureManagerBase
 
 matplotlib.rcParams.update(
     {
-        "figure.figsize": (6.8, 4.2),  # about the 68ch column; the client scales to 100%
+        # The column's width: the client draws SVG at the scale where 6.8in fills the block
+        # (FIGURE_WIDTH in blocks.js), so a smaller figsize takes its share of it.
+        "figure.figsize": (6.8, 4.2),
+        "figure.constrained_layout.use": True,  # labels inside the figure, no wasted margin
         "savefig.transparent": True,  # printed on the grey block
         "savefig.format": "svg",
         "savefig.dpi": 200,
@@ -31,7 +34,8 @@ def show(*args, **kwargs) -> None:
     png = matplotlib.rcParams["savefig.format"] == "png"
     for manager in Gcf.get_all_fig_managers():
         buffer = io.BytesIO()
-        manager.canvas.figure.savefig(buffer, format="png" if png else "svg", bbox_inches="tight")
+        # Not bbox_inches="tight": the image must keep the figure's size to scale it right.
+        manager.canvas.figure.savefig(buffer, format="png" if png else "svg")
         if png:
             emit("image/png", buffer.getvalue())
         else:

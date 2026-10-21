@@ -102,7 +102,7 @@ def test_matplotlib_figures_in_order(tmp_path):
         code += "print('x')\nplt.plot([2]);"
         items = run(w, code)
         assert [mime for mime, _ in items] == ["image/svg+xml", "stdout", "stdout", "image/svg+xml"]
-        assert "<svg" in items[0][1]
+        assert 'width="489.6pt" height="302.4pt"' in items[0][1]  # the figsize, not trimmed
         assert run(w, "len(plt.get_fignums())") == [("text/plain", "0")]  # all closed
         [(mime, png)] = run(w, "plt.rcParams['savefig.format'] = 'png'\nplt.plot([1]);")
         assert mime == "image/png" and png.startswith(b"\x89PNG")

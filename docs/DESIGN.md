@@ -120,7 +120,10 @@ abiertas sin `plt.show()`.
 - `figsize` por defecto acorde con el ancho de la columna.
 - Figura transparente (o `facecolor` igual a `--code-bg`) para que el gráfico parezca
   impreso sobre el bloque gris.
-- En el cliente, las figuras se muestran al 100% del ancho del bloque, nunca más.
+- En el cliente, las figuras se muestran al 100% del ancho del bloque, nunca más. El SVG
+  conserva el tamaño de la figura (sin `bbox_inches="tight"`, con `constrained_layout`) y
+  se dibuja a la escala en la que el `figsize` por defecto (6,8 pulgadas) llena el bloque:
+  una figura más estrecha ocupa su parte proporcional en vez de estirarse.
 
 ### 4.5 Orden y estado
 
