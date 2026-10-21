@@ -30,7 +30,7 @@ Markdown. Nada de celdas visibles: el documento parece una hoja continua.
 | Atajo | Efecto |
 |---|---|
 | Ctrl+Alt+I | Inserta un bloque de Python. A mitad de un bloque de Markdown, lo parte por el cursor e inserta el de Python en medio. (Mismo atajo que "insertar chunk" en RStudio.) |
-| Ctrl+Alt+F | En Markdown, inserta una nota al pie: `[^n]` en el cursor (`n`, el primer número libre del documento) y su definición `[^n]: ` tras el párrafo, donde queda el cursor. (Mismo atajo que en Word.) |
+| Ctrl+Alt+F | En Markdown, inserta una nota al pie: `[^n]` en el cursor (`n`, el primer número libre del documento) y su definición `[^n]: ` tras el párrafo y las definiciones que ya tenga debajo, donde queda el cursor. (Mismo atajo que en Word.) |
 | Ctrl+Enter | En un bloque de Python: lo ejecuta, pinta la salida y lleva el foco al bloque de Markdown siguiente, creándolo si no existe. En Markdown: evalúa sus expresiones `py` (§4.7). |
 | ArrowUp / ArrowDown | En la primera o última línea de un bloque, saltan al bloque anterior o siguiente. La salida de un bloque nunca recibe foco. |
 | Backspace | Al inicio de un bloque de Python vacío, lo elimina y fusiona los bloques de Markdown adyacentes. |
