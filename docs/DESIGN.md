@@ -235,6 +235,9 @@ Así no hace falta sincronizar ids de bloque entre cliente y servidor.
   inline del Markdown que lo sigue, y las figuras como ficheros aparte.
 - Ubicación: un directorio oculto junto al documento, `.libreta/<nombre-del-doc>/`:
   `<hash>.json` con la lista de salidas y `<hash>-<n>.<ext>` por figura.
+- No se versiona: es un producto de la ejecución, como `__pycache__`. `.libreta/` lleva
+  su propio `.gitignore` (`*`), como `.pytest_cache`, así que git lo ignora sin tocar el
+  `.gitignore` del proyecto.
 - Cada ejecución (del editor o de `libreta run`) borra las entradas cuyo hash no está en la
   cadena del documento que se ejecuta, así que la caché no crece con las ediciones.
 - Al abrir un documento, cada bloque con caché válida muestra su salida sin ejecutar nada.
@@ -495,6 +498,9 @@ Notas sobre la hoja editorial existente:
 - Los enlaces usan `var(--accent)`; el código inline se selecciona con `:not(pre) > code`.
 - La medida se mide en `ch` de la fuente de texto: con código a 0.875em en monoespaciada,
   una columna de 68ch admite unos 65-70 caracteres de código antes del scroll horizontal.
+  Es la de la prosa editorial (unos 65 caracteres por línea); 80ch la alargaba de más.
+- El bloque gris tiene el ancho de la prosa, no más: el código y sus figuras son un inciso
+  del texto, y la columna no cambia de ancho al pasar de uno a otro.
 
 ## 10. Exportación
 
@@ -544,9 +550,6 @@ Cada hito termina con tests en verde y, si toca frontend, pasos de prueba manual
 
 ## 13. Decisiones abiertas
 
-- Medida de la columna: el diseño inicial habló de 80ch; la hoja editorial usa 68ch.
-- ¿El bloque gris puede ser más ancho que la prosa (recurso editorial para código y figuras)?
-- ¿La caché se versiona en git o va en `.gitignore`?
 - Guardado: explícito con Ctrl+S, automático con debounce, o ambos.
 - Cambios externos al fichero mientras está abierto en el editor (fuera de alcance en v1).
 - Servidor con la biblioteca estándar en vez de Starlette y uvicorn: ver

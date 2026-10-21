@@ -70,6 +70,9 @@ class Cache:
 
     def save(self, h: str, items: list[tuple[str, str | bytes]], reads: dict | None = None) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
+        ignore = self.dir.parent / ".gitignore"  # the cache stays out of git, as .pytest_cache
+        if not ignore.exists():
+            ignore.write_text("*\n")
         for old in self.dir.glob(f"{h}*"):
             old.unlink()
         if reads:

@@ -22,6 +22,7 @@ def test_save_load_prune(tmp_path):
         {"mime": "image/png", "base64": "iVBORw=="},
     ]
     assert cache.load(h2) == []
+    assert (tmp_path / ".libreta" / ".gitignore").read_text() == "*\n"
     files = sorted(p.name for p in cache.dir.iterdir())
     assert files == sorted([f"{h1}.json", f"{h1}-1.svg", f"{h1}-2.png", f"{h2}.json"])
     cache.save(h1, [("stdout", "otra\n")])  # rewriting an entry drops its old figures

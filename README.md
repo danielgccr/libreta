@@ -101,7 +101,7 @@ its last run without running anything; changing a block invalidates it and the o
 The data counts too: libreta notes the files each block reads (`open()`, pandas, and paths
 named in the code, for parquet, polars or duckdb), and if one changes on disk the block and
 the ones after it are stale; running a later block starts again from the top.
-The folder is disposable: add it to `.gitignore` or commit it.
+The folder is disposable, and git ignores it: libreta puts a `.gitignore` inside.
 
 ### Params
 

@@ -12,7 +12,7 @@ build/
 .pytest_cache/
 .ruff_cache/
 
-# Caché de documentos de libreta (ver docs/DESIGN.md, decisión abierta)
+# Caché de documentos de libreta (DESIGN §5; la propia carpeta lleva su .gitignore)
 .libreta/
 
 # Productos intermedios de `libreta export`
