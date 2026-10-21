@@ -1,6 +1,7 @@
 // Markdown colouring for the overlay. Colours only (DESIGN §6.2): headings darker, syntax
-// markers muted, inline code with its background, links in --accent, `py ...` apart, and
-// TeX math between dollars as Pandoc reads it (tex_math_dollars): no KaTeX, just colour.
+// markers muted, inline code with its background, links and footnote labels in --accent,
+// `py ...` apart, and TeX math between dollars as Pandoc reads it (tex_math_dollars): no
+// KaTeX, just colour.
 
 import { escapeHtml } from "./py-highlight.js";
 
@@ -10,6 +11,7 @@ const HEADING = /^( {0,3}#{1,6})([ \t].*|)$/;
 const RULE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const QUOTE = /^( {0,3}(?:>[ \t]?)+)(.*)$/;
 const ITEM = /^([ \t]*(?:[-+*]|\d{1,9}[.)]))([ \t].*|)$/;
+const NOTE_DEF = /^( {0,3}\[\^[^\]\s]+\]:)(.*)$/; // [^1]: footnote text
 const DISPLAY_OPEN = /^ {0,3}\$\$(?!.*\$\$)/; // $$ whose closing $$ comes on a later line
 
 const INLINE = new RegExp(
@@ -22,6 +24,7 @@ const INLINE = new RegExp(
     // a digit, so that a price stays prose.
     String.raw`(?<tex>(?<td>\$\$?)(?=[^\s$\d])(?<tc>[^$]*)$)`,
     String.raw`(?<auto><https?:\/\/[^>\s]+>)`,
+    String.raw`(?<note>\[\^(?<label>[^\]\s]+)\])`, // footnote reference: [^1]
     String.raw`(?<link>(?<open>!?\[)(?<text>[^\]\n]*)(?<target>\]\([^)\n]*\)))`,
     String.raw`(?<star>(?<sd>\*\*|\*|~~)(?=[^\s*~])(?<sc>.+?)(?<=\S)\k<sd>)`,
     String.raw`(?<under>(?<![\p{L}\p{N}])(?<ud>__|_)(?=[^\s_])(?<uc>.+?)(?<=\S)\k<ud>(?![\p{L}\p{N}]))`,
@@ -65,6 +68,7 @@ export function highlightMarkdown(text) {
       if ((m = line.match(HEADING))) return span("md-h", mark(m[1]) + inline(m[2]));
       if (RULE.test(line)) return mark(line);
       if ((m = line.match(QUOTE))) return mark(m[1]) + inline(m[2]);
+      if ((m = line.match(NOTE_DEF))) return mark(m[1]) + inline(m[2]);
       if ((m = line.match(ITEM))) return mark(m[1]) + inline(m[2]);
       return inline(line);
     })
@@ -86,6 +90,7 @@ function inline(text) {
       const dollars = g.dd ?? "$";
       html += mark(dollars) + math(g.dc ?? g.ic) + mark(dollars);
     } else if (g.tex) html += mark(g.td) + math(g.tc); else if (g.auto) html += span("md-link", escapeHtml(g.auto));
+    else if (g.note) html += mark("[^") + span("md-link", escapeHtml(g.label)) + mark("]");
     else if (g.link) html += mark(g.open) + span("md-link", escapeHtml(g.text)) + mark(g.target);
     else if (g.star) html += mark(g.sd) + inline(g.sc) + mark(g.sd);
     else html += mark(g.ud) + inline(g.uc) + mark(g.ud);
