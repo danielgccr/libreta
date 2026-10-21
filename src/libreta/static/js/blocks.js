@@ -226,14 +226,34 @@ function collapse(text) {
     .join("\n");
 }
 
+// A stream past twice MAX_LINES keeps its last MAX_LINES, after a line that counts the
+// rest: a loop printing 100 000 lines stays light. Trimming only past twice the limit
+// keeps the cost per write constant on average. Twin of keep_tail() in libreta/display.py.
+const MAX_LINES = 2000;
+
+function appendStream(element, content) {
+  if (content.includes("\r")) {
+    element.textContent = collapse(element.textContent + content);
+    element.lines = element.textContent.split("\n").length;
+  } else {
+    element.append(content);
+    element.lines = (element.lines ?? 1) + content.split("\n").length - 1;
+  }
+  if (element.lines <= 2 * MAX_LINES) return;
+  const lines = element.textContent.split("\n");
+  element.dropped = (element.dropped ?? 0) + lines.length - MAX_LINES - (element.dropped ? 1 : 0);
+  element.textContent =
+    `… ${element.dropped.toLocaleString("es")} líneas anteriores omitidas\n` + lines.slice(-MAX_LINES).join("\n");
+  element.lines = MAX_LINES + 1;
+}
+
 const FIGURE_WIDTH = 6.8 * 96; // px: figure.figsize in libreta/_mpl.py, in CSS pixels
 
 export function appendOutput(block, { mime, content, base64 }) {
   const output = block.querySelector(".output");
   const last = output.lastElementChild;
   if ((mime === "stdout" || mime === "stderr") && last?.dataset.stream === mime) {
-    if (content.includes("\r")) last.textContent = collapse(last.textContent + content);
-    else last.append(content);
+    appendStream(last, content);
     return;
   }
   let element;
@@ -251,7 +271,7 @@ export function appendOutput(block, { mime, content, base64 }) {
       : `data:${mime};charset=utf-8,${encodeURIComponent(content)}`;
   } else {
     element = document.createElement("pre"); // streams, errors, text/plain, text/markdown (v1)
-    element.textContent = content.includes("\r") ? collapse(content) : content;
+    appendStream(element, content);
   }
   element.className = `out ${mime.replace(/\W/g, "-")}`;
   if (mime === "stdout" || mime === "stderr") element.dataset.stream = mime;

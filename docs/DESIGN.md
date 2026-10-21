@@ -121,7 +121,9 @@ Comunicación con el servidor por un socket con el protocolo de `multiprocessing
    figuras y los valores mostrados. La salida de un bloque es una lista ordenada de
    elementos `(mime, contenido)`. Un retorno de carro (`\r`) reescribe su línea, como en
    una terminal: las barras de progreso (tqdm) muestran y guardan en caché una sola línea,
-   no cada fotograma. Las escrituras seguidas a un mismo flujo se guardan juntas.
+   no cada fotograma. Las escrituras seguidas a un mismo flujo se guardan juntas. Un flujo
+   que pasa de 4.000 líneas se queda con las 2.000 últimas, tras una línea "… N líneas
+   anteriores omitidas" (en el editor y en la caché): un bucle que imprime mucho no pesa.
 4. Errores: traceback recortado a los frames del código del usuario, mostrado dentro del
    bloque gris con un tono rojo apagado.
 

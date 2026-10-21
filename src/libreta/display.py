@@ -69,6 +69,19 @@ def collapse(text: str) -> str:
     return "\n".join(line[line.rfind("\r", 0, len(line) - 1) + 1 :] for line in lines)
 
 
+MAX_LINES = 2000  # what a stream keeps: its last lines
+
+
+def keep_tail(text: str) -> str:
+    """A stream past twice MAX_LINES keeps its last MAX_LINES, after a line that counts the
+    rest: a loop printing 100 000 lines stays light. Twin of appendStream() in blocks.js."""
+    lines = text.split("\n")
+    if len(lines) <= 2 * MAX_LINES:
+        return text
+    dropped = f"{len(lines) - MAX_LINES:,}".replace(",", ".")
+    return f"… {dropped} líneas anteriores omitidas\n" + "\n".join(lines[-MAX_LINES:])
+
+
 class Stream(io.TextIOBase):
     """sys.stdout/sys.stderr replacement: every write becomes one output item."""
 

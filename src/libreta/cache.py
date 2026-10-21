@@ -15,7 +15,7 @@ from collections.abc import Iterable
 from itertools import accumulate
 from pathlib import Path
 
-from libreta.display import collapse
+from libreta.display import collapse, keep_tail
 
 STREAMS = ("stdout", "stderr")
 
@@ -90,11 +90,15 @@ class Cache:
 
 def _merged(items: list[tuple[str, str | bytes]]) -> list[tuple[str, str | bytes]]:
     """Consecutive writes to a stream as one item, as the editor shows them, with progress
-    bars' carriage returns applied: a loop of 10 000 updates keeps one line."""
+    bars' carriage returns applied (a loop of 10 000 updates keeps one line) and only the
+    last lines of a long one."""
     merged: list[tuple[str, str | bytes]] = []
     for mime, content in items:
         if mime in STREAMS and merged and merged[-1][0] == mime:
             merged[-1] = (mime, merged[-1][1] + content)
         else:
             merged.append((mime, content))
-    return [(m, collapse(c) if m in STREAMS and "\r" in c else c) for m, c in merged]
+    return [
+        (m, keep_tail(collapse(c) if "\r" in c else c)) if m in STREAMS else (m, c)
+        for m, c in merged
+    ]

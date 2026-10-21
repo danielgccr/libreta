@@ -1,6 +1,6 @@
 import ast
 
-from libreta.display import collapse, represent, split_last_expression
+from libreta.display import MAX_LINES, collapse, keep_tail, represent, split_last_expression
 
 
 class Html:
@@ -94,3 +94,12 @@ def test_collapse():
     assert collapse(" 20%\r" + "\r 30%") == " 30%"
     assert collapse("fin\r" + "\n") == "fin\n"  # \r\n split across two writes
     assert collapse("sin retornos\n") == "sin retornos\n"
+
+
+def test_keep_tail():
+    short = "\n".join(map(str, range(2 * MAX_LINES)))
+    assert keep_tail(short) == short
+    long = "\n".join(map(str, range(12_000)))
+    kept = keep_tail(long).split("\n")
+    assert kept[0] == "… 10.000 líneas anteriores omitidas"
+    assert kept[1:] == [str(i) for i in range(10_000, 12_000)]
