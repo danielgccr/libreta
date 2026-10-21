@@ -268,6 +268,7 @@ document.addEventListener("mousedown", () => {
   closeAssist();
 });
 main.addEventListener("focusout", closeAssist);
+window.addEventListener("pagehide", api.close);
 window.addEventListener("beforeunload", (event) => {
   if (isDirty()) event.preventDefault();
 });

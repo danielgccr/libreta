@@ -270,7 +270,8 @@ def when(mtime: float, now: datetime | None = None) -> str:
 
 def create_app(root: Path, token: str) -> Starlette:
     """The editor for the Markdown documents under `root`: their index at /, each one at
-    /edit/<path>, with its own worker and its calls under that same URL."""
+    /edit/<path>, with its calls under that same URL. One worker at a time: the document in
+    use has it (see `using`), and closing its page closes it (.../restart)."""
     root = Path(os.path.abspath(root))
     sessions: dict[Path, Session] = {}
 
@@ -282,6 +283,12 @@ def create_app(root: Path, token: str) -> Starlette:
         if path not in sessions:
             sessions[path] = Session(path)
         return path, sessions[path]
+
+    async def using(session: Session) -> None:
+        """The document about to run code gets the only worker: the others' close."""
+        for other in sessions.values():
+            if other is not session and other.worker is not None:
+                await run_in_threadpool(other.restart)
 
     async def index(request: Request):
         files = [
@@ -340,6 +347,7 @@ def create_app(root: Path, token: str) -> Starlette:
             n = next((i for i, b in enumerate(blocks) if b.line == line), None)
             if n is None:
                 return PlainTextResponse("No hay un bloque de Python en esa línea.", 409)
+        await using(session)
         lines = session.run(text, parsed, n, inline)
         return StreamingResponse(lines, media_type="application/x-ndjson")
 
@@ -351,6 +359,7 @@ def create_app(root: Path, token: str) -> Starlette:
         if point is None:
             return JSONResponse([])
         kind = request.url.path.rpartition("/")[2]
+        await using(session)
         return JSONResponse(await run_in_threadpool(session.assist, kind, *point))
 
     async def get_modules(request: Request):

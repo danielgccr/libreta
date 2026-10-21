@@ -39,6 +39,9 @@ export async function run(text, line, inline, onItem) {
 export const interrupt = () => request("/interrupt");
 export const modules = async () => (await request("/modules", { method: "GET" })).json();
 export const restart = () => request("/restart");
+// The page goes (tab closed, another document, the index): its worker with it. A beacon,
+// since a fetch would not outlive the page.
+export const close = () => navigator.sendBeacon(BASE + "/restart");
 
 // kind "complete" or "signature": jedi's help at a cursor of the document (DESIGN §6.6).
 export async function assist(kind, text, line, column) {

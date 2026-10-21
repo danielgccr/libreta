@@ -335,3 +335,28 @@ def test_when():
     assert when(datetime(2026, 10, 20, 23, 0).timestamp(), now) == "ayer, 23:00"
     assert when(datetime(2026, 3, 3).timestamp(), now) == "3 mar"
     assert when(datetime(2025, 12, 31).timestamp(), now) == "31 dic 2025"
+
+
+def test_one_worker_at_a_time(tmp_path):
+    doc_app = create_app(tmp_path, "secret")
+    a = "```python\nx = 1\n```\n\n```python\nx\n```\n"
+
+    def run(doc, text, line):
+        body = json.dumps({"text": text, "line": line}).encode()
+        response = get(
+            method="POST", path=f"/edit/{doc}/run", body=body, cookie="secret", app=doc_app
+        )
+        return items(response[2])
+
+    try:
+        assert run("a.md", a, 1) == [{"start": 1}]
+        assert run("a.md", a, 5) == [{"start": 5}, {"mime": "text/plain", "content": "1"}]
+        assert run("b.md", "```python\n2\n```\n", 1)[-1]["content"] == "2"  # a.md's closes
+        assert run("a.md", a, 5) == [  # a fresh worker for a.md: block 1 runs again
+            {"start": 1},
+            {"start": 5},
+            {"mime": "text/plain", "content": "1"},
+        ]
+    finally:
+        for doc in ["a.md", "b.md"]:
+            get(method="POST", path=f"/edit/{doc}/restart", cookie="secret", app=doc_app)

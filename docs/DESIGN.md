@@ -91,6 +91,12 @@ Comunicación con el servidor por pipe con mensajes serializados. Nada de kernel
 
 - Interrupción: SIGINT al worker (`KeyboardInterrupt` dentro del bloque en curso).
 - Reinicio: matar y crear un worker nuevo con namespace vacío.
+- Un solo worker a la vez. Nace la primera vez que un documento ejecuta código o pide
+  completado (abrir un documento o la lista no arranca ninguno). Cuando otro documento lo
+  hace, el worker del anterior se cierra; y cuando la página del documento se va (pestaña
+  cerrada, recarga, ir a la lista u a otro fichero), avisa con `sendBeacon` a `.../restart`
+  y su worker se cierra también. La caché sigue mostrando las salidas; la siguiente
+  ejecución aplica §4.5.
 - El worker arranca con `MPLBACKEND=module://libreta._mpl` en su entorno (§4.4) y no importa
   matplotlib ni pandas por su cuenta: solo si el usuario lo hace.
 
