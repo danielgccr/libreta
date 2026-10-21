@@ -20,6 +20,7 @@
   --hl-comment: #8a8a8a;
   --hl-decorator: #8a6500;
   --hl-py-inline: #1f7272;
+  --hl-math: #8e3b72;
 
   --font-text: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-code: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;

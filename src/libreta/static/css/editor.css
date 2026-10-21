@@ -242,3 +242,4 @@ body {
 .md-py { color: var(--hl-py-inline); }
 .md-link { color: var(--accent); }
 .md-fence { color: var(--text-muted); }
+.md-math { color: var(--hl-math); }
