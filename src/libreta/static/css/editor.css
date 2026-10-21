@@ -70,6 +70,20 @@ header.front > .title {
 .path:hover {
   color: var(--accent);
 }
+.path::before {
+  content: "←";
+  display: inline-block;
+  margin-inline-end: 0.5ch;
+  transition: transform 0.15s ease;
+}
+.path:hover::before {
+  transform: translateX(-0.25em);
+}
+@media (prefers-reduced-motion: reduce) {
+  .path::before {
+    transition: none;
+  }
+}
 
 /* Index of documents (GET /): path on the left, last edit on the right. */
 main.index {
