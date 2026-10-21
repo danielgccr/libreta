@@ -1,77 +1,86 @@
 ---
-title: Es buena demo
+title: Una muestra del padrón
 date: 2026-10-21
 ---
-# Demo de libreta
+Este documento es un ejemplo de libreta: un texto en Markdown en el que, cuando hace
+falta, aparece un bloque de Python que se ejecuta y muestra su resultado en el sitio.
+El código es un inciso del texto, como una figura o una cita.
 
-Me está encantando esto, es comodísimo. Resaltemos expresiones matemáticas
+## Los datos
+
+La muestra está en `padron.csv`, junto a este documento: una fila por persona, con su
+barrio, su edad y el número de personas con las que convive.
+
 ```python
-def f(x):
-    return x**2
+import pandas as pd
 
-f(3)
+df = pd.read_csv("padron.csv")
+df.head()
 ```
-Sigamos, leyuendo
+
+La muestra tiene `py len(df)` personas repartidas en `py df.barrio.nunique()` barrios.
+
+## La edad media
+
+La media de una muestra de $n$ valores es $\bar x = \frac{1}{n}\sum_{i=1}^{n} x_i$.
+En la nuestra:
+
 ```python
-# los amanuenses saltan
-ran = [1, 2, 3]
-[i+10 for i in ran]
+media = float(df.edad.mean())
+mediana = df.edad.median()
+print(f"de {df.edad.min()} a {df.edad.max()} años")
+round(media, 1)
 ```
-Un párrafo de prosa. El código es un inciso del texto, como una figura o una cita. ¿Cómo se ve `py [i + 10 for i in ran]` o `py [i + 11 for i in ran]`.
+
+La edad media es de `py round(media, 1)` años y la mediana, de `py int(mediana)`: la
+media queda por encima porque unas pocas personas muy mayores tiran de ella.
+
+## Por barrio
 
 ```python
-datos = [3, 1, 4, 1, 5, 9, 2, 6, 2, 10]
-sum(datos) / len(datos)
+por_barrio = df.groupby("barrio").agg(
+    personas=("edad", "size"),
+    edad_media=("edad", "mean"),
+    convivientes=("convivientes", "mean"),
+).round(1)
+por_barrio
 ```
-La media es `py sum(datos) / len(datos)`. me gusta que hablemos de cómo puede ser Nicanor un mierdas, `py 4 + 3`,  `py 5 + 5` ó `py 4 + 1`
 
-# Matplotlib
+El barrio más joven es `py por_barrio.edad_media.idxmin()`, con una edad media de
+`py por_barrio.edad_media.min()` años, y también el de hogares más grandes:
+`py por_barrio.convivientes.max()` personas de media.
 
-Vamos con el análisis gráfico
+## La distribución
+
 ```python
-import numpy as np
 import matplotlib.pyplot as plt
 
-x = np.linspace(0, 2 * np.pi, 200)
 fig, ax = plt.subplots()
-ax.plot(x, np.sin(x), label="seno")
-ax.plot(x, np.cos(x), label="coseno")
-ax.legend()
-plt.show()
-
-plt.hist(np.random.default_rng(1).normal(size=500), bins=30);
+ax.hist(df.edad, bins=range(0, 101, 10), edgecolor="white")
+ax.axvline(media, color="black", linestyle="--", label="media")
+ax.set_xlabel("edad")
+ax.set_ylabel("personas")
+ax.legend();
 ```
+
 ## Lo que no se ejecuta
 
-Un fence de otro lenguaje es texto:
+Solo se ejecutan los bloques con la etiqueta exacta `python` al primer nivel del documento.
+Un bloque de otro lenguaje es texto:
 
 ```bash
 # esto no es un título
-echo hola
+uv run libreta run ejemplos/demo.md
 ```
 
-Ni un bloque de Python dentro de una lista:
+Y tampoco se ejecuta uno de Python dentro de una lista o de una cita:
 
-- Por ejemplo este:
+- Por ejemplo, este:
 
   ```python
   print("no se ejecuta")
   ```
-Es que el amanuense eléctrico me ha hablado de cómo proceder.
-## Fin
 
-```python
-max(datos)
-datos.index
-```
-
-Es que el máximo es `py max(datos)`, no se dude.
-```python
-import pandas as pd
-
-pd.read_csv("https://support.staffbase.com/hc/en-us/article_attachments/360009197031/username.csv", sep=";")
-```
-Me gusta cómo es.
-```python
-from bs4 import BeautifulSoup
-```
+> ```python
+> print("ni este")
+> ```
