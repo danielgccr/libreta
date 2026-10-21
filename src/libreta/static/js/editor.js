@@ -106,6 +106,20 @@ async function save() {
   }
 }
 
+// The Markdown after `block` (or from it, if it is Markdown) up to the next Python block:
+// the one whose notes show `block`'s values.
+function paintNotesAfter(block) {
+  let b = isPython(block) ? block.nextElementSibling : block;
+  for (; b && !isPython(b); b = b.nextElementSibling) paintNotes(b);
+}
+
+// A Python block inserted or removed at `block` moves the notes just before it and after it.
+function paintNotesNear(block) {
+  const prev = block.previousElementSibling;
+  if (prev && !isPython(prev)) paintNotes(prev);
+  paintNotesAfter(block);
+}
+
 // Python blocks from `block` on (or after it) no longer show what their code would produce.
 function markStale(block, after = false) {
   for (let b = after ? block.nextElementSibling : block; b; b = b.nextElementSibling)
@@ -129,8 +143,9 @@ async function run(block) {
     await api.run(text, lines.get(block), !current, (item) => {
       if (item.values) {
         const owner = item.line ? python.get(item.line) : main;
-        if (owner) owner.values = item.values;
-        paintAllNotes();
+        if (!owner) return;
+        owner.values = item.values;
+        paintNotesAfter(owner === main ? main.firstElementChild : owner);
       } else if (item.start !== undefined) {
         current?.classList.remove("running");
         current = python.get(item.start); // undefined only if client and server disagree
@@ -233,8 +248,9 @@ document.addEventListener("keydown", (event) => {
   if (mod && event.altKey && event.code === "KeyI") {
     event.preventDefault();
     insertPython(main, textarea);
-    markStale(document.activeElement.closest(".block")); // a new block changes the chain
-    paintAllNotes();
+    const python = document.activeElement.closest(".block");
+    markStale(python); // a new block changes the chain
+    paintNotesNear(python);
     showDirty();
     return;
   }
@@ -254,7 +270,7 @@ document.addEventListener("keydown", (event) => {
       markStale(block, true);
       removePython(block);
       normalize(main);
-      paintAllNotes();
+      paintNotesNear(document.activeElement.closest(".block"));
       showDirty();
       return;
     }

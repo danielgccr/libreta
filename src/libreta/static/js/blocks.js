@@ -84,8 +84,11 @@ export function serialize(main) {
 export function locate(main) {
   const { text, starts } = layout(blockData(main), main.dataset.finalNewline === "1", main.dataset.front);
   const lines = new Map();
+  let line = 1;
+  let from = 0; // lines counted in one pass: the starts only grow
   main.querySelectorAll(".block").forEach((block, i) => {
-    lines.set(block, text.slice(0, starts[i]).split("\n").length);
+    for (; from < starts[i]; from++) if (text.charCodeAt(from) === 10) line++;
+    lines.set(block, line);
   });
   return { text, lines };
 }
@@ -289,6 +292,9 @@ export function paintNotes(block) {
   while (owner && !isPython(owner)) owner = owner.previousElementSibling;
   const values = (owner ?? block.parentElement).values ?? {};
   const pre = block.querySelector("pre");
+  let notes = block.querySelector(".notes");
+  // Without expressions nor notes to clear, no layout to read: a long document has many.
+  if (!notes && !pre.querySelector(".md-py")) return;
   const top = pre.getBoundingClientRect().top;
   const lines = new Map(); // height -> [expression, value] on that visual line
   for (const span of pre.querySelectorAll(".md-py")) {
@@ -297,7 +303,6 @@ export function paintNotes(block) {
     const y = Math.round(span.getBoundingClientRect().top - top);
     lines.set(y, [...(lines.get(y) ?? []), [expression, values[expression]]]);
   }
-  let notes = block.querySelector(".notes");
   if (!notes) {
     notes = document.createElement("div");
     notes.className = "notes";

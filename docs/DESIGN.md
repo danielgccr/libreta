@@ -284,7 +284,9 @@ Los dólares en `--text-muted` y la fórmula en `--hl-math`. No se renderiza (si
 Los valores de las expresiones `py` no pueden insertarse en el overlay (romperían la
 correspondencia carácter a carácter). Se muestran en el margen derecho de la columna, a la
 altura de su línea. Para obtener la posición vertical: un `<span>` marcador en el `<pre>`
-y `getBoundingClientRect()`.
+y `getBoundingClientRect()`. Solo se miden los bloques con expresiones `py`, y al llegar
+los valores de un bloque, o al insertarlo o borrarlo, solo se repinta el Markdown de alrededor:
+en un documento de cientos de bloques, cada medición fuerza una maquetación.
 
 ### 6.6 Autocompletado
 
