@@ -1,0 +1,28 @@
+/* Shared by editor.css and export.css. Dark palette (and color-scheme) arrive in M7. */
+:root {
+  --bg: #fcfcfc;
+  --text: #444;
+  --text-muted: #666;
+  --border: #e5e5e5;
+  --code-bg: rgba(0, 0, 0, 0.15);
+  --accent: #2b5c8f;
+  --text-strong: #222;
+  --selection: rgba(43, 92, 143, 0.18);
+  --error: #9b3b3b; /* muted red for tracebacks */
+  --rule: rgba(0, 0, 0, 0.12); /* hairline on the grey block, between code and output */
+
+  /* Overlay colours (editor). Colour only: never weight, style or size. */
+  --hl-keyword: #7a3e9d;
+  --hl-builtin: #2b5c8f;
+  --hl-def: #1d4f7a;
+  --hl-string: #44743a;
+  --hl-number: #a0522d;
+  --hl-comment: #8a8a8a;
+  --hl-decorator: #8a6500;
+  --hl-py-inline: #1f7272;
+
+  --font-text: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-code: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  --measure: 68ch;
+  --font-base: clamp(1rem, 0.95rem + 0.35vi, 1.25rem);
+}

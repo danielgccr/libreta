@@ -1,0 +1,345 @@
+# Diseño de libreta
+
+## 1. Por qué existe
+
+Los notebooks de Python descienden de IPython, es decir, de una REPL mejorada: la pregunta
+de origen era "¿cómo exploro interactivamente?" y la prosa llegó después, como un tipo de
+celda más. RMarkdown desciende de Sweave y knitr, de estadísticos que escribían informes:
+la pregunta era "¿cómo escribo un documento en el que los números salen del código?".
+
+- Jupyter: el centro es la celda; el Markdown tiene modo edición y modo render; el fichero
+  es un JSON ilegible e imposible de diffear.
+- Marimo: el centro es el programa; la prosa vive en strings `mo.md("...")`.
+- Streamlit: es una app que reejecuta el script entero; no es un documento.
+- Quarto: trae el modelo de RMarkdown, pero ejecuta Python a través de un kernel de Jupyter
+  con Pandoc y Deno debajo. Pesado.
+
+libreta recupera la segunda pregunta: un texto con cálculos. La exploración queda fuera
+(para eso está la terminal). El caso de uso es escribir y probar código dentro de un documento.
+
+Precedentes que conviene estudiar: Livebook (Elixir, ficheros `.livemd`), Observable
+Framework (JS), Clerk (Clojure), knitr con `cache=TRUE`. En Python hay ejecutores de bloques
+en Markdown por lotes (markdown-exec, Pweave, Codebraid, Jupytext en formato `.md`), pero
+no un editor interactivo, ligero y centrado en la prosa.
+
+## 2. Experiencia de uso
+
+Una página en blanco con una sola columna de lectura centrada. Se empieza escribiendo
+Markdown. Nada de celdas visibles: el documento parece una hoja continua.
+
+| Atajo | Efecto |
+|---|---|
+| Ctrl+Alt+I | Inserta un bloque de Python. A mitad de un bloque de Markdown, lo parte por el cursor e inserta el de Python en medio. (Mismo atajo que "insertar chunk" en RStudio.) |
+| Ctrl+Enter | En un bloque de Python: lo ejecuta, pinta la salida y lleva el foco al bloque de Markdown siguiente, creándolo si no existe. En Markdown: evalúa sus expresiones `py` (§4.7). |
+| ArrowUp / ArrowDown | En la primera o última línea de un bloque, saltan al bloque anterior o siguiente. La salida de un bloque nunca recibe foco. |
+| Backspace | Al inicio de un bloque de Python vacío, lo elimina y fusiona los bloques de Markdown adyacentes. |
+| Ctrl+A / Ctrl+C | Seleccionan y copian el documento completo como Markdown (con sus fences), no solo el bloque activo. |
+| Ctrl+S | Guarda. |
+| Ctrl+Espacio | Autocompletado (además del disparo automático, ver §6.6). |
+| Escape | Con un bloque en ejecución, lo interrumpe (`KeyboardInterrupt`). |
+| Ctrl+Shift+F10 | Reinicia el worker con el namespace vacío (mismo atajo que "restart R" en RStudio). |
+
+Los bloques de Python son una franja gris (`--code-bg`). Dentro van el código y, debajo,
+su salida: texto, tablas HTML, figuras de matplotlib, errores. El bloque gris es la unidad
+completa de "código y lo que produce".
+
+## 3. Formato de fichero
+
+El fichero es Markdown estándar (CommonMark). Reglas:
+
+- Un bloque de Python ejecutable es un fence de primer nivel con info string exactamente
+  `python`: ` ```python `. Todo lo demás (incluidos fences de otros lenguajes o de Python
+  anidados en listas o citas) es texto Markdown y no se ejecuta.
+- El código inline `` `py expr` `` dentro del Markdown es una expresión que se evalúa (§4.7).
+  En GitHub o en cualquier visor se ve la expresión, que sigue siendo legible.
+- Las salidas no se guardan en el `.md`. Viven en la caché (§5).
+- Garantía de ida y vuelta: `serialize(parse(texto)) == texto`, byte a byte, incluidos
+  espacios finales, líneas en blanco y finales de línea. Es un test obligatorio con
+  ficheros de ejemplo variados.
+
+Ejemplo:
+
+````markdown
+# Edad media de la muestra
+
+Cargamos los datos del padrón.
+
+```python
+import pandas as pd
+df = pd.read_csv("padron.csv")
+df.head()
+```
+
+La edad media es `py round(df.edad.mean(), 1)` años.
+````
+
+El parser es propio y basado en líneas (no hace falta una librería de Markdown para dividir
+en bloques). Debe respetar las reglas de CommonMark para fences: longitud del fence de
+cierre >= apertura, mismo carácter, indentación de hasta 3 espacios.
+
+## 4. Modelo de ejecución
+
+### 4.1 Worker
+
+Un proceso hijo por documento con un namespace persistente (`dict`) donde se hace `exec`.
+Comunicación con el servidor por pipe con mensajes serializados. Nada de kernels de Jupyter.
+
+- Interrupción: SIGINT al worker (`KeyboardInterrupt` dentro del bloque en curso).
+- Reinicio: matar y crear un worker nuevo con namespace vacío.
+- El worker arranca con `MPLBACKEND=module://libreta._mpl` en su entorno (§4.4) y no importa
+  matplotlib ni pandas por su cuenta: solo si el usuario lo hace.
+
+### 4.2 Ejecución de un bloque
+
+1. `ast.parse` del código. Si la última sentencia es una expresión (`ast.Expr`), se ejecuta
+   el resto con `exec` y la última con `eval`, y su valor se muestra (como en Jupyter).
+   Si la línea termina en `;`, no se muestra.
+2. Se compila con `filename` igual a la ruta del `.md` y los números de línea desplazados
+   (el código se rellena con saltos de línea delante, lo que también cubre los
+   `SyntaxError`) para que los tracebacks apunten a la línea real del fichero.
+3. stdout y stderr se capturan y se emiten en streaming, intercalados en orden con las
+   figuras y los valores mostrados. La salida de un bloque es una lista ordenada de
+   elementos `(mime, contenido)`.
+4. Errores: traceback recortado a los frames del código del usuario, mostrado dentro del
+   bloque gris con un tono rojo apagado.
+
+### 4.3 Protocolo de display
+
+Para mostrar un valor, se prueba en este orden: `_repr_html_`, `_repr_svg_`, `_repr_png_`,
+`_repr_markdown_` (en v1 se muestra como texto), `repr()`. Con esto pandas, polars, plotly
+y similares funcionan sin integración específica.
+
+### 4.4 matplotlib
+
+Backend propio basado en Agg, cargado con `MPLBACKEND=module://libreta._mpl` (consultar la API
+de backends de la versión de matplotlib instalada). Su `show()` emite las figuras abiertas
+en ese punto del stream y las cierra. Al terminar el bloque se emiten las figuras que queden
+abiertas sin `plt.show()`.
+
+- Formato por defecto SVG; PNG con dpi alto como alternativa.
+- `figsize` por defecto acorde con el ancho de la columna.
+- Figura transparente (o `facecolor` igual a `--code-bg`) para que el gráfico parezca
+  impreso sobre el bloque gris.
+- En el cliente, las figuras se muestran al 100% del ancho del bloque, nunca más.
+
+### 4.5 Orden y estado
+
+La semántica de referencia es knitr: el documento se ejecuta de arriba abajo, cada bloque
+sobre el estado que dejan los anteriores.
+
+- `libreta run` es la reproducción canónica: proceso nuevo, de arriba abajo, siempre.
+- El editor es pragmático: el worker recuerda hasta qué hash encadenado (§5) refleja su
+  estado. Si se pide ejecutar el bloque N y algún bloque anterior ha cambiado desde la
+  última ejecución, se reinicia el worker y se ejecuta 1..N. Si solo ha cambiado el propio
+  bloque N, se reejecuta sobre el estado actual (impuro, como en Jupyter, y aceptado).
+- Los bloques posteriores a uno modificado o reejecutado se marcan como obsoletos.
+
+### 4.6 Petición de ejecución
+
+El cliente envía el documento completo junto con la línea donde abre el fence del bloque
+a ejecutar (no su índice: el editor añade bloques de Markdown vacíos que no existen en el
+fichero). El servidor lo reparsea, calcula los hashes encadenados y decide qué ejecutar.
+Así no hace falta sincronizar ids de bloque entre cliente y servidor.
+
+### 4.7 Código inline `py`
+
+- Se evalúa con `eval` (solo expresiones, no sentencias) sobre el estado del namespace en
+  ese punto del documento: después de los bloques anteriores y antes de los siguientes.
+- No hay sintaxis de formato propia: `py round(x, 1)` o `` `py f"{x:.1f}"` `` ya son Python.
+  El valor se muestra con `str()`, no con `repr()`: es prosa.
+- Se evalúan al ejecutar el bloque que las precede (las anteriores al primer bloque, cuando
+  el worker arranca) y con Ctrl+Enter en el Markdown: si el worker está justo en ese punto
+  del documento solo se evalúan; si no, se aplica §4.5 hasta el bloque anterior.
+- Son las mismas que colorea el editor: spans de código de una línea fuera de fences cuyo
+  contenido empieza por `py` y un espacio.
+- En el editor, el valor aparece en el margen derecho a la altura de su línea, como nota al
+  margen (ver §6.5). En la exportación se sustituye en línea.
+- Si la caché queda obsoleta, el valor se atenúa hasta la siguiente ejecución.
+
+## 5. Caché
+
+- Clave de cada bloque: hash encadenado `h_i = sha256(h_{i-1} + código_i)`. Cambiar un
+  bloque invalida ese y todos los posteriores.
+- Contenido: la lista ordenada de salidas del bloque, los valores de las expresiones `py`
+  inline del Markdown que lo sigue, y las figuras como ficheros aparte.
+- Ubicación: un directorio oculto junto al documento, `.libreta/<nombre-del-doc>/`:
+  `<hash>.json` con la lista de salidas y `<hash>-<n>.<ext>` por figura.
+- Cada ejecución (del editor o de `libreta run`) borra las entradas cuyo hash no está en la
+  cadena del documento que se ejecuta, así que la caché no crece con las ediciones.
+- Al abrir un documento, cada bloque con caché válida muestra su salida sin ejecutar nada.
+- La caché sirve para mostrar, no restaura el namespace. Tras abrir un documento, el worker
+  está vacío y la primera ejecución en el editor aplica la regla de §4.5.
+
+## 6. Editor
+
+### 6.1 Arquitectura
+
+El documento es una secuencia de bloques; cada uno es un `<textarea>` autoajustable con un
+`<pre>` resaltado debajo (técnica de overlay). El textarea es transparente
+(`color: transparent; caret-color: var(--text)`) y recibe la escritura, así que el
+navegador aporta cursor, selección, undo/redo, IME y portapapeles. El `<pre>` se repinta en
+cada evento `input`, con un `\n` final para igualar la última línea vacía. El scroll de
+ambas capas se sincroniza.
+
+Bloques de Markdown: fuente de texto del documento. Bloques de Python: monoespaciada, dentro
+del contenedor gris junto a su `<div>` de salida.
+
+Cada título de Markdown (`#`, `##`...) abre un bloque nuevo, de modo que el bloque puede
+recibir el margen superior correspondiente al título y el ritmo vertical del editor se
+parece al del documento exportado. Para el usuario sigue siendo una hoja continua: sin
+bordes ni separaciones visibles entre bloques de Markdown.
+
+### 6.2 Invariantes (romperlos desalinea cursor y texto)
+
+- El overlay solo cambia colores. Nunca tamaño, peso (`bold`), estilo (`italic`), familia
+  ni espaciado, porque cambian el ancho de los glifos.
+- Textarea y `<pre>` comparten exactamente: `font` (el textarea necesita `font: inherit`,
+  los controles de formulario no heredan), `letter-spacing`, `line-height`, `tab-size`,
+  `white-space: pre-wrap`, `overflow-wrap`, `padding`, `border`, `font-kerning`,
+  `font-variant-ligatures` y `text-rendering`.
+- Nada de `text-wrap: pretty`, `hyphens` ni `optimizeLegibility` en las capas del editor:
+  el textarea parte líneas de forma voraz y el `<pre>` debe hacer lo mismo.
+- Toda inserción programática de texto usa `document.execCommand('insertText', false, s)`.
+  Asignar `textarea.value` destruye el historial de undo nativo.
+
+### 6.3 Edición de Python
+
+- Tab inserta 4 espacios; Shift+Tab desindenta; ambos funcionan sobre selecciones de varias líneas.
+- Enter conserva la indentación y la aumenta tras una línea terminada en `:`.
+- Dedent automático tras `return`, `pass`, `break`, `continue`, `raise`.
+- Backspace en zona de indentación borra hasta la tabulación anterior.
+- Ctrl+/ comenta y descomenta.
+- `spellcheck="false"`, `autocapitalize="off"`, `autocorrect="off"`.
+
+Tokenizador propio en JS, solo para Python: keywords (incluidas las soft keywords `match`,
+`case`, `type`), builtins, números (`1_000`, `0x1F`, `1e-3`, `2j`), comentarios, decoradores,
+nombres tras `def` y `class`, y strings con prefijos (`r`, `b`, `f`, `rb`, `fr`...). Los
+triple-quoted abarcan varias líneas, así que el tokenizador arrastra estado entre líneas.
+En v1 un f-string se colorea entero como string.
+
+### 6.4 Coloreado del Markdown
+
+Sin cambiar métrica (§6.2): títulos en un tono más oscuro que el cuerpo; marcadores de
+sintaxis (`#`, `*`, `_`, `>`, `-`, `` ` ``) en `--text-muted` para que se retiren; código
+inline con su fondo; enlaces en `--accent`; expresiones `` `py ...` `` en un color propio.
+
+### 6.5 Valores inline al margen
+
+Los valores de las expresiones `py` no pueden insertarse en el overlay (romperían la
+correspondencia carácter a carácter). Se muestran en el margen derecho de la columna, a la
+altura de su línea. Para obtener la posición vertical: un `<span>` marcador en el `<pre>`
+y `getBoundingClientRect()`.
+
+### 6.6 Autocompletado
+
+- En el worker, con `jedi.Interpreter(código, namespaces=[ns])`, que combina análisis
+  estático con los objetos vivos: completa columnas de un DataFrame ya cargado y también
+  imports que aún no se han ejecutado. Firmas con `get_signatures()`.
+- El código que se pasa a jedi es el de todos los bloques de Python hasta el actual.
+- Disparo: al escribir `.` o `["`, y con Ctrl+Espacio; con debounce.
+- Funciona también dentro de `` `py ...` `` en el Markdown.
+- Transporte: `fetch` con JSON (no HTMX).
+- Posición del desplegable: `<span>` marcador en la posición del cursor dentro del `<pre>`.
+- Flechas para navegar, Tab o Enter para aceptar (vía `execCommand`), Escape para cerrar.
+  Con el desplegable abierto, Enter acepta; Ctrl+Enter sigue ejecutando.
+
+### 6.7 Limitación asumida
+
+No se puede seleccionar con el ratón texto que abarque dos bloques. Se mitiga con el
+Ctrl+A / Ctrl+C sobre el documento completo (§2).
+
+## 7. Servidor
+
+Starlette con uvicorn. El cliente usa `fetch` en vanilla para todo (`api.js`): el
+documento llega como JSON incrustado en la página y el JS construye los bloques, así que
+hasta ahora no ha hecho falta intercambiar fragmentos HTML y HTMX no se usa.
+
+Endpoints:
+
+- `GET /` página del editor con el documento.
+- `PUT /doc` guardar (texto plano; escritura atómica, conserva CRLF).
+- `POST /run` `{text, line}`: documento completo y línea donde abre el fence del bloque.
+  Responde en streaming con NDJSON, un elemento `{mime, content}` (o `{mime, base64}`)
+  por línea, en orden. Antes de la salida de cada bloque que se ejecuta llega `{start: línea}`:
+  si hay que reejecutar 1..N (§4.5), cada bloque recibe la suya. Un error en un bloque
+  anterior no detiene la reejecución (cada bloque muestra el suyo); Escape sí, y el N recibe
+  un error que lo explica. Los valores `py` del Markdown que sigue a un bloque llegan como
+  `{values: {expr: {text} | {error}}, line}` (`line` 0: antes del primer bloque). Con
+  `inline: true`, `line` es la de un bloque de Markdown y se evalúan sus expresiones.
+  Una sola petición: ni id de ejecución ni `EventSource`.
+- `POST /interrupt`, `POST /restart`.
+- `POST /complete`, `POST /signature` (JSON, M6).
+
+## 8. CLI
+
+- `libreta edit doc.md` abre el servidor y el navegador.
+- `libreta run doc.md` ejecuta de arriba abajo en un proceso nuevo, actualiza la caché e
+  informa de errores con línea del `.md`. Código de salida distinto de cero si falla algún
+  bloque. Pensado para terminal, cron y CI.
+- `libreta export doc.md [--to html|pdf] [--css ...]` genera el Markdown tejido (§10) y, si
+  Pandoc está instalado, lo convierte.
+
+## 9. Estilo
+
+Dos capas sobre los mismos tokens:
+
+- `tokens.css`: paleta, medida, tamaños base, `--code-bg`, `--accent`. Incluye la paleta
+  oscura bajo `@media (prefers-color-scheme: dark)`. Si se declara `color-scheme: light dark`,
+  la paleta oscura es obligatoria (si no, los controles nativos se pintan oscuros sobre
+  fondo claro).
+- `export.css`: la hoja editorial para Pandoc HTML (títulos con tamaño y peso, ligaduras en
+  la prosa, `text-wrap`, etc.).
+- `editor.css`: misma columna, fondo, paleta, interlineado y bloque gris; sin variaciones
+  de métrica en el texto (§6.2). El editor debe sentirse como una prueba de imprenta del
+  documento exportado.
+
+Notas sobre la hoja editorial existente:
+
+- `font-variant-ligatures: none` va en `code, pre`, no en `html`.
+- `main` con `max-width: var(--measure); margin-inline: auto; padding-inline: ...` en vez de
+  `width`, para no desbordar en pantallas estrechas.
+- Ritmo vertical en una sola unidad (`lh` o `em`, no ambas).
+- Los enlaces usan `var(--accent)`; el código inline se selecciona con `:not(pre) > code`.
+- La medida se mide en `ch` de la fuente de texto: con código a 0.875em en monoespaciada,
+  una columna de 68ch admite unos 65-70 caracteres de código antes del scroll horizontal.
+
+## 10. Exportación
+
+Mismo esquema que RMarkdown: libreta produce un Markdown "tejido" a partir del `.md` fuente y
+la caché (valores `py` sustituidos, figuras como ficheros enlazados, salida de texto en
+fences, HTML de tablas incrustado), y Pandoc lo convierte con `export.css`. Sin Pandoc,
+`libreta export` deja el Markdown tejido.
+
+## 11. Seguridad
+
+El servidor ejecuta código arbitrario: escucha solo en 127.0.0.1, genera un token aleatorio
+por sesión (en la URL que abre el CLI, luego en cookie) y rechaza peticiones cuya cabecera
+Host no sea localhost/127.0.0.1 (protección frente a DNS rebinding).
+
+## 12. Hoja de ruta
+
+Cada hito termina con tests en verde y, si toca frontend, pasos de prueba manual.
+
+- M0. Esqueleto: `pyproject.toml` con uv, ruff, pytest; `libreta edit` sirve una página vacía
+  con la columna; `document.py` con parser/serializador y tests de ida y vuelta.
+- M1. Motor sin navegador: worker, ejecución de bloques, última expresión, protocolo de
+  display, captura ordenada de stdout, tracebacks con línea del `.md`, backend de
+  matplotlib. `libreta run` funcional.
+- M2. Editor: bloques textarea+overlay, tokenizador de Python, coloreado de Markdown,
+  atajos de §2, navegación entre bloques, guardado.
+- M3. Ejecución desde el editor: Ctrl+Enter, salida en el bloque gris por SSE, figuras,
+  interrupción y reinicio.
+- M4. Caché y obsolescencia (§4.5, §5).
+- M5. `py` inline y valores al margen.
+- M6. Autocompletado y firmas con jedi.
+- M7. Exportación con Pandoc, modo oscuro, pulido de `editor.css` y `export.css`.
+
+## 13. Decisiones abiertas
+
+- Medida de la columna: el diseño inicial habló de 80ch; la hoja editorial usa 68ch.
+- ¿El bloque gris puede ser más ancho que la prosa (recurso editorial para código y figuras)?
+- ¿La caché se versiona en git o va en `.gitignore`?
+- Guardado: explícito con Ctrl+S, automático con debounce, o ambos.
+- Cambios externos al fichero mientras está abierto en el editor (fuera de alcance en v1).
+- Optimización futura del reinicio en §4.5: snapshots del worker con `os.fork` tras cada
+  bloque (copy-on-write, solo Linux/macOS) para no reejecutar bloques caros.

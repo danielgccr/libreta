@@ -1,0 +1,33 @@
+[project]
+name = "libreta"
+version = "0.1.0"
+description = "Cuaderno de Python minimalista centrado en la prosa"
+requires-python = ">=3.12"
+dependencies = [
+    "jinja2>=3.1.6",
+    "starlette>=1.9.0",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+libreta = "libreta.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+exclude = ["*.md"]  # documents are the user's text: never rewrite their code blocks
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.11.2",
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]

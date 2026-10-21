@@ -1,0 +1,200 @@
+/* Same column and palette as the exported document, with no metric variations (DESIGN §6.2). */
+html {
+  font-family: var(--font-text);
+  font-size: var(--font-base);
+  line-height: 1.6;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: var(--measure);
+  margin-inline: auto;
+  padding: 3lh 1.5rem 40vh;
+}
+
+/* Headings open a block so it can take their top margin (DESIGN §6.1). */
+.block.md[data-heading="1"],
+.block.md[data-heading="2"] {
+  margin-block-start: 1lh;
+}
+.block.md[data-heading="3"] {
+  margin-block-start: 0.5lh;
+}
+.block:first-child {
+  margin-block-start: 0;
+}
+
+.block.py {
+  font-family: var(--font-code);
+  font-size: 0.875em;
+  line-height: 1.5;
+  background-color: var(--code-bg);
+  border-radius: 4px;
+  padding: 0.75lh 1.25ch;
+}
+.py .scroll {
+  overflow-x: auto; /* code does not wrap: both layers scroll together */
+}
+.py .layers {
+  width: max-content;
+  min-width: 100%;
+}
+.block.py.running {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+/* Output that no longer matches the code above it (DESIGN §4.5): fades until the next run. */
+.block.py.stale .output {
+  opacity: 0.45;
+}
+
+/* Output: inside the grey block, under the code. */
+.output {
+  margin-block-start: 0.75lh;
+  padding-block-start: 0.75lh;
+  border-block-start: 1px solid var(--rule);
+}
+.output:empty {
+  display: none;
+}
+.out {
+  margin: 0;
+}
+.out + .out {
+  margin-block-start: 0.5lh;
+}
+pre.out {
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.out.stderr {
+  color: var(--text-muted);
+}
+.out.error {
+  color: var(--error);
+}
+img.out {
+  display: block;
+  max-width: 100%; /* figures fill the block at most, never more */
+  height: auto;
+}
+.out.text-html {
+  overflow-x: auto;
+}
+.out.text-html table {
+  border-collapse: collapse;
+}
+.out.text-html :is(table, th, td) {
+  border: 0; /* pandas asks for border="1" */
+}
+.out.text-html :is(th, td) {
+  padding: 0.1lh 1ch;
+  text-align: right;
+  border-block-end: 1px solid var(--border);
+}
+
+/* The overlay: an in-flow <pre> sets the height, the textarea lies on top of it.
+   Everything that affects glyph metrics must be identical on both layers. */
+.layers {
+  position: relative;
+}
+.layers > pre,
+.layers > textarea {
+  display: block;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  tab-size: 4;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  font-kerning: none;
+  font-variant-ligatures: none;
+  text-rendering: auto;
+}
+.py .layers > pre,
+.py .layers > textarea {
+  white-space: pre;
+  overflow-wrap: normal;
+  padding-inline-end: 1ch; /* room for the caret at the end of the longest line */
+}
+.layers > textarea {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+}
+.layers > textarea::selection {
+  color: transparent;
+  background: var(--selection);
+}
+
+.all-selected .block {
+  background-image: linear-gradient(var(--selection), var(--selection));
+}
+
+/* Values of inline `py` expressions, in the right margin at the height of their line
+   (DESIGN §6.5). Outside the overlay, so free of its metric rules. */
+body {
+  overflow-x: clip; /* ponytail: on narrow screens the margin is cut off; no room for notes */
+}
+.notes {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: calc(100% + 1.5rem);
+  width: 24ch;
+}
+.note {
+  position: absolute;
+  inset-inline-start: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--font-code);
+  font-size: 0.875em;
+  line-height: 1lh; /* in line-height, lh is the parent's: one line of prose */
+  color: var(--hl-py-inline);
+}
+.note > span + span::before {
+  content: " · ";
+  color: var(--text-muted);
+}
+.note > .error {
+  color: var(--error);
+}
+.block.py.stale ~ .block.md .note {
+  opacity: 0.45; /* computed on a state the code above no longer gives (DESIGN §4.7) */
+}
+
+/* Python */
+.tok-kw { color: var(--hl-keyword); }
+.tok-builtin { color: var(--hl-builtin); }
+.tok-def { color: var(--hl-def); }
+.tok-str { color: var(--hl-string); }
+.tok-num { color: var(--hl-number); }
+.tok-com { color: var(--hl-comment); }
+.tok-deco { color: var(--hl-decorator); }
+
+/* Markdown */
+.md-h { color: var(--text-strong); }
+.md-mark { color: var(--text-muted); }
+.md-code,
+.md-py { background-color: var(--code-bg); border-radius: 3px; }
+.md-py { color: var(--hl-py-inline); }
+.md-link { color: var(--accent); }
+.md-fence { color: var(--text-muted); }

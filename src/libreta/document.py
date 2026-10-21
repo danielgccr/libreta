@@ -1,0 +1,150 @@
+"""Split a Markdown document into prose blocks and executable Python blocks.
+
+The parser is line based and only knows the bits of CommonMark it needs: fenced code
+blocks (to find top-level ```python fences and to skip the inside of any other fence),
+ATX headings (each one opens a new Markdown block) and list items (a fence nested in a
+list is prose). Every block keeps its exact source slice, so
+``serialize(parse(text)) == text`` holds by construction.
+
+Known simplifications: block quotes need no tracking (a fence line is never a lazy
+continuation, so ``> ```python`` is always prose); thematic breaks such as ``* * *``
+are read as list items; HTML blocks and setext headings are not recognised.
+"""
+
+import re
+from dataclasses import dataclass
+from typing import Literal
+
+LINE = re.compile(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+\Z")
+FENCE_OPEN = re.compile(r"( {0,3})(`{3,}|~{3,})(.*)")
+FENCE_CLOSE = re.compile(r" {0,3}(`{3,}|~{3,})[ \t]*")
+HEADING = re.compile(r" {0,3}#{1,6}(?:[ \t]|$)")
+LIST_ITEM = re.compile(r"( {0,3})([-+*]|\d{1,9}[.)])( +|$)")
+# A backslash escape (so \` opens nothing) or a code span, as in md-highlight.js.
+CODE_SPAN = re.compile(r"\\[!-/:-@\[-`{-~]|(`+)([^`](?:.*?[^`])?)\1(?!`)")
+INLINE_PY = re.compile(r"py\s")
+
+
+@dataclass(frozen=True)
+class Block:
+    kind: Literal["markdown", "python"]
+    text: str  # exact source slice, fences included
+    line: int  # 1-based line of the block's first line (the opening fence for python)
+    code: str = ""  # python only: the fence content, without the fence indentation
+    close: str = ""  # python only: the closing fence line ("" if the fence runs to EOF)
+
+
+def serialize(blocks: list[Block]) -> str:
+    return "".join(block.text for block in blocks)
+
+
+def parse(text: str) -> list[Block]:
+    lines = LINE.findall(text)
+    blocks: list[Block] = []
+    start = 0  # first line of the pending Markdown block
+    list_indent: int | None = None  # content column of the open top-level list item
+    prev_blank = False
+
+    def flush(end: int) -> None:
+        if end > start:
+            blocks.append(Block("markdown", "".join(lines[start:end]), start + 1))
+
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip("\r\n")
+        blank = not line.strip()
+        expanded = line.expandtabs(4)
+        if not blank and (list_indent is None or _indent(expanded) < list_indent):
+            if item := LIST_ITEM.match(expanded):
+                list_indent = _content_indent(item)
+                prev_blank = False
+                i += 1
+                continue
+            if list_indent is not None and (prev_blank or _fence_open(line) or HEADING.match(line)):
+                list_indent = None
+        prev_blank = blank
+        if list_indent is not None:  # inside a list item, or a lazy continuation of one
+            i += 1
+            continue
+
+        if fence := _fence_open(line):
+            indent, marker, info = fence
+            end, closed = _fence_end(lines, i, marker)
+            if info.strip() == "python":
+                flush(i)
+                body = lines[i + 1 : end - 1 if closed else end]
+                code = "".join(_dedent(body_line, indent) for body_line in body)
+                close = lines[end - 1] if closed else ""
+                blocks.append(Block("python", "".join(lines[i:end]), i + 1, code, close))
+                start = end
+            i = end
+            continue
+
+        if HEADING.match(line):
+            flush(i)
+            start = i
+        i += 1
+
+    flush(len(lines))
+    return blocks
+
+
+def _fence_open(line: str) -> tuple[int, str, str] | None:
+    m = FENCE_OPEN.fullmatch(line)
+    if not m or (m[2][0] == "`" and "`" in m[3]):
+        return None
+    return len(m[1]), m[2], m[3]
+
+
+def _fence_end(lines: list[str], i: int, marker: str) -> tuple[int, bool]:
+    """Index just past the closing fence, and whether there was one (else: end of file)."""
+    for j in range(i + 1, len(lines)):
+        m = FENCE_CLOSE.fullmatch(lines[j].rstrip("\r\n"))
+        if m and m[1][0] == marker[0] and len(m[1]) >= len(marker):
+            return j + 1, True
+    return len(lines), False
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def _content_indent(item: re.Match[str]) -> int:
+    pad = len(item[3])
+    if not 1 <= pad <= 4 or item.end() == len(item.string):
+        pad = 1
+    return item.end(2) + pad
+
+
+def _dedent(line: str, n: int) -> str:
+    return line[min(n, _indent(line)) :]
+
+
+def expressions(blocks: list[Block]) -> list[list[str]]:
+    """The inline `py` expressions of the Markdown before the first Python block, then of
+    the Markdown after each one: what each point of the document evaluates (DESIGN §4.7)."""
+    sections: list[list[str]] = [[]]
+    for block in blocks:
+        if block.kind == "python":
+            sections.append([])
+        else:
+            sections[-1] += _inline_python(block.text)
+    return sections
+
+
+def _inline_python(markdown: str) -> list[str]:
+    """Code spans starting with `py `, line by line outside fences: the same ones
+    md-highlight.js colours, so the editor finds a value for each of them."""
+    found = []
+    fence = None
+    for line in markdown.splitlines():
+        if fence:
+            m = FENCE_CLOSE.fullmatch(line)
+            if m and m[1][0] == fence[0] and len(m[1]) >= len(fence):
+                fence = None
+        elif opening := _fence_open(line):
+            fence = opening[1]
+        else:
+            spans = (m[2] for m in CODE_SPAN.finditer(line) if m[2])
+            found += [code[2:].strip() for code in spans if INLINE_PY.match(code)]
+    return found

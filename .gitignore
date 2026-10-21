@@ -1,0 +1,16 @@
+# Secretos: nunca en el repositorio
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Caché de documentos de libreta (ver docs/DESIGN.md, decisión abierta)
+.libreta/
