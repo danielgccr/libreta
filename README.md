@@ -20,7 +20,7 @@ df.head()
 The mean age is `py round(df.age.mean(), 1)` years.
 ````
 
-The interface and its messages are in Spanish.
+![Writing a paragraph, inserting a Python block that draws a histogram, and an inline expression whose value appears in the margin](https://raw.githubusercontent.com/danielgccr/libreta/master/docs/demo.gif)
 
 ## Installation
 
