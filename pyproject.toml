@@ -12,6 +12,7 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Web Environment",
     "Intended Audience :: Science/Research",
+    "Natural Language :: English",
     "Natural Language :: Spanish",
     "Operating System :: POSIX",
     "Programming Language :: Python :: 3",
