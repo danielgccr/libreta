@@ -108,26 +108,26 @@ function inline(text) {
 // (§6.2). Each run of their text gets the letter-spacing that makes it exactly as wide as
 // the plain text: line breaks and the caret after it still match; inside it the caret can be
 // a hair off. Widths add up per character, as the textarea lays them out: no kerning, no
-// ligatures. In em, so a resize does not undo it.
+// ligatures. Measured once at 100px, in em: neither a resize nor the cache depend on the size.
 const FIT = ".md-em, .md-code";
 let ctx = null;
-const widths = new Map();
+const widths = new Map(); // font + character -> advance in em
 
 function fontOf(element) {
   const s = getComputedStyle(element);
-  return `${s.fontStyle} ${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
+  return { font: `${s.fontStyle} ${s.fontWeight} 100px ${s.fontFamily}`, size: parseFloat(s.fontSize) };
 }
 
-function width(chars, font) {
+function width(chars, { font, size }) {
   ctx ??= document.createElement("canvas").getContext("2d");
   ctx.font = font;
   let total = 0;
   for (const c of chars) {
     const key = font + "\0" + c;
-    if (!widths.has(key)) widths.set(key, ctx.measureText(c).width);
+    if (!widths.has(key)) widths.set(key, ctx.measureText(c).width / 100);
     total += widths.get(key);
   }
-  return total;
+  return total * size;
 }
 
 export function fitMarkdown(pre) {
@@ -142,11 +142,10 @@ export function fitMarkdown(pre) {
   }
   for (const node of nodes) {
     const chars = [...node.data];
-    const font = fontOf(node.parentElement);
-    const size = parseFloat(getComputedStyle(node.parentElement).fontSize);
+    const run = fontOf(node.parentElement);
     const fit = document.createElement("span");
     fit.className = "md-fit";
-    fit.style.letterSpacing = `${(width(chars, plain) - width(chars, font)) / chars.length / size}em`;
+    fit.style.letterSpacing = `${(width(chars, plain) - width(chars, run)) / chars.length / run.size}em`;
     node.replaceWith(fit);
     fit.append(node);
   }
