@@ -339,7 +339,7 @@ Sin cambiar métrica (§6.2): títulos en un tono más oscuro que el cuerpo; mar
 sintaxis (`#`, `*`, `_`, `>`, `-`, `` ` ``) en `--text-muted` para que se retiren; código
 inline con su fondo; enlaces en `--accent`; expresiones `` `py ...` `` en un color propio.
 El texto entre `**` o `__` se engrosa con un trazo (`-webkit-text-stroke`, que no ensancha
-los glifos como `bold`). El que va entre `*` o `_` sale en cursiva y el código inline en
+los glifos como `bold`), y el que va entre `~~` se tacha. El que va entre `*` o `_` sale en cursiva y el código inline en
 monoespaciada, de verdad: tras pintar, `fitMarkdown()` da a cada tramo de ese texto el
 `letter-spacing` (en `em`) que lo deja tan ancho como en la letra del textarea, sumando
 anchos de carácter medidos en un canvas (sin kerning ni ligaduras, como el textarea). Los

@@ -424,5 +424,6 @@ body {
 .md-link { color: var(--accent); }
 /* A stroke, not font-weight: bold glyphs are wider (§6.2). */
 .md-strong { -webkit-text-stroke: 0.03em currentColor; }
+.md-del { text-decoration: line-through; }
 .md-fence { color: var(--text-muted); }
 .md-math { color: var(--hl-math); }
