@@ -418,5 +418,8 @@ body {
 .md-py { background-color: var(--code-bg); border-radius: 3px; }
 .md-py { color: var(--hl-py-inline); }
 .md-link { color: var(--accent); }
+/* A stroke, not font-weight: bold glyphs are wider and would misalign the caret (§6.2). */
+.md-strong { -webkit-text-stroke: 0.03em currentColor; }
+.md-em { color: var(--hl-em); }
 .md-fence { color: var(--text-muted); }
 .md-math { color: var(--hl-math); }

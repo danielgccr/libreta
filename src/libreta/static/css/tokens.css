@@ -22,6 +22,7 @@
   --hl-decorator: #8a6500;
   --hl-py-inline: #1f7272;
   --hl-math: #8e3b72;
+  --hl-em: #7a5230;
 
   --font-text: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-code: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
@@ -51,5 +52,6 @@
     --hl-decorator: #d8b65c;
     --hl-py-inline: #6fc7c7;
     --hl-math: #e391c6;
+    --hl-em: #d6ad84;
   }
 }

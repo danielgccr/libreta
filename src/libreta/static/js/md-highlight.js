@@ -1,6 +1,6 @@
 // Markdown colouring for the overlay. Colours only (DESIGN §6.2): headings darker, syntax
 // markers muted, inline code with its background, links and footnote labels in --accent,
-// `py ...` apart, and TeX math between dollars as Pandoc reads it (tex_math_dollars): no
+// strong emphasis thickened with a stroke and emphasis in its own tone, `py ...` apart, and TeX math between dollars as Pandoc reads it (tex_math_dollars): no
 // KaTeX, just colour.
 
 import { escapeHtml } from "./py-highlight.js";
@@ -94,8 +94,12 @@ function inline(text) {
     else if (g.note)
       html += mark("[^") + span("md-link", escapeHtml(g.label ?? g.typed)) + (g.close ? mark("]") : "");
     else if (g.link) html += mark(g.open) + span("md-link", escapeHtml(g.text)) + mark(g.target);
-    else if (g.star) html += mark(g.sd) + inline(g.sc) + mark(g.sd);
-    else html += mark(g.ud) + inline(g.uc) + mark(g.ud);
+    else {
+      const d = g.sd ?? g.ud;
+      const cls = d === "~~" ? null : d.length === 2 ? "md-strong" : "md-em";
+      const inner = inline(g.sc ?? g.uc);
+      html += mark(d) + (cls ? span(cls, inner) : inner) + mark(d);
+    }
   }
   return html + escapeHtml(text.slice(last));
 }

@@ -337,6 +337,8 @@ En v1 un f-string se colorea entero como string.
 Sin cambiar métrica (§6.2): títulos en un tono más oscuro que el cuerpo; marcadores de
 sintaxis (`#`, `*`, `_`, `>`, `-`, `` ` ``) en `--text-muted` para que se retiren; código
 inline con su fondo; enlaces en `--accent`; expresiones `` `py ...` `` en un color propio.
+El texto entre `**` o `__` se engrosa con un trazo (`-webkit-text-stroke`, que no ensancha
+los glifos como `bold`) y el que va entre `*` o `_` se pinta en `--hl-em`.
 Matemáticas TeX entre dólares, como las lee Pandoc (`tex_math_dollars`): `$...$` en línea
 (sin espacio junto a los dólares de dentro ni dígito tras el de cierre, así que `$20 y $30`
 es texto) y `$$...$$`, también en varias líneas si el `$$` abre al principio de una.
