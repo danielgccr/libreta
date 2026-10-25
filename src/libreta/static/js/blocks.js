@@ -7,7 +7,7 @@
 
 import { escapeHtml, highlightPython } from "./py-highlight.js";
 import { lang, tr } from "./i18n.js";
-import { highlightMarkdown } from "./md-highlight.js";
+import { fitMarkdown, highlightMarkdown } from "./md-highlight.js";
 
 const HEADING = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
 const PYTHON_ATTRS =
@@ -46,6 +46,7 @@ export function paint(block) {
   // The trailing \n gives a final empty line its height, as in the textarea.
   pre.innerHTML = (isPython(block) ? highlightPython(value) : highlightMarkdown(value)) + "\n";
   if (!isPython(block)) {
+    fitMarkdown(pre);
     const heading = value.match(HEADING);
     if (heading) block.dataset.heading = heading[1].length;
     else delete block.dataset.heading;

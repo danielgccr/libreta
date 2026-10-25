@@ -1,6 +1,6 @@
-// Markdown colouring for the overlay. Colours only (DESIGN §6.2): headings darker, syntax
-// markers muted, inline code with its background, links and footnote labels in --accent,
-// strong emphasis thickened with a stroke and emphasis in its own tone, `py ...` apart, and TeX math between dollars as Pandoc reads it (tex_math_dollars): no
+// Markdown colouring for the overlay (DESIGN §6.4): headings darker, syntax markers muted,
+// inline code in monospace with its background, emphasis in italics, strong emphasis
+// thickened with a stroke, links and footnote labels in --accent, `py ...` apart, and TeX math between dollars as Pandoc reads it (tex_math_dollars): no
 // KaTeX, just colour.
 
 import { escapeHtml } from "./py-highlight.js";
@@ -102,4 +102,52 @@ function inline(text) {
     }
   }
   return html + escapeHtml(text.slice(last));
+}
+
+// Italics and monospace have their own glyph widths, and the textarea underneath does not
+// (§6.2). Each run of their text gets the letter-spacing that makes it exactly as wide as
+// the plain text: line breaks and the caret after it still match; inside it the caret can be
+// a hair off. Widths add up per character, as the textarea lays them out: no kerning, no
+// ligatures. In em, so a resize does not undo it.
+const FIT = ".md-em, .md-code";
+let ctx = null;
+const widths = new Map();
+
+function fontOf(element) {
+  const s = getComputedStyle(element);
+  return `${s.fontStyle} ${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
+}
+
+function width(chars, font) {
+  ctx ??= document.createElement("canvas").getContext("2d");
+  ctx.font = font;
+  let total = 0;
+  for (const c of chars) {
+    const key = font + "\0" + c;
+    if (!widths.has(key)) widths.set(key, ctx.measureText(c).width);
+    total += widths.get(key);
+  }
+  return total;
+}
+
+export function fitMarkdown(pre) {
+  if (!pre.querySelector(FIT)) return;
+  if (!pre.isConnected) return requestAnimationFrame(() => pre.isConnected && fitMarkdown(pre));
+  const plain = fontOf(pre);
+  const walker = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) {
+    const parent = walker.currentNode.parentElement;
+    if (!parent.classList.contains("md-fit") && parent.closest(FIT)) nodes.push(walker.currentNode);
+  }
+  for (const node of nodes) {
+    const chars = [...node.data];
+    const font = fontOf(node.parentElement);
+    const size = parseFloat(getComputedStyle(node.parentElement).fontSize);
+    const fit = document.createElement("span");
+    fit.className = "md-fit";
+    fit.style.letterSpacing = `${(width(chars, plain) - width(chars, font)) / chars.length / size}em`;
+    node.replaceWith(fit);
+    fit.append(node);
+  }
 }

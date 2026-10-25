@@ -302,7 +302,8 @@ bordes ni separaciones visibles entre bloques de Markdown.
 ### 6.2 Invariantes (romperlos desalinea cursor y texto)
 
 - El overlay solo cambia colores. Nunca tamaño, peso (`bold`), estilo (`italic`), familia
-  ni espaciado, porque cambian el ancho de los glifos.
+  ni espaciado, porque cambian el ancho de los glifos. La excepción, medida, es la del
+  Markdown (§6.4): cursivas y código inline con su letra real, igualados en ancho.
 - Textarea y `<pre>` comparten exactamente: `font` (el textarea necesita `font: inherit`,
   los controles de formulario no heredan), `letter-spacing`, `line-height`, `tab-size`,
   `white-space: pre-wrap`, `overflow-wrap`, `padding`, `border`, `font-kerning`,
@@ -338,7 +339,13 @@ Sin cambiar métrica (§6.2): títulos en un tono más oscuro que el cuerpo; mar
 sintaxis (`#`, `*`, `_`, `>`, `-`, `` ` ``) en `--text-muted` para que se retiren; código
 inline con su fondo; enlaces en `--accent`; expresiones `` `py ...` `` en un color propio.
 El texto entre `**` o `__` se engrosa con un trazo (`-webkit-text-stroke`, que no ensancha
-los glifos como `bold`) y el que va entre `*` o `_` se pinta en `--hl-em`.
+los glifos como `bold`). El que va entre `*` o `_` sale en cursiva y el código inline en
+monoespaciada, de verdad: tras pintar, `fitMarkdown()` da a cada tramo de ese texto el
+`letter-spacing` (en `em`) que lo deja tan ancho como en la letra del textarea, sumando
+anchos de carácter medidos en un canvas (sin kerning ni ligaduras, como el textarea). Los
+saltos de línea y el cursor tras el tramo coinciden; dentro, el cursor puede desviarse un
+poco. `line-height: 0` impide que otra letra agrande la línea. Las expresiones `py` no
+cambian de letra: sus spans dan la altura de los valores del margen (§6.5).
 Matemáticas TeX entre dólares, como las lee Pandoc (`tex_math_dollars`): `$...$` en línea
 (sin espacio junto a los dólares de dentro ni dígito tras el de cierre, así que `$20 y $30`
 es texto) y `$$...$$`, también en varias líneas si el `$$` abre al principio de una.
