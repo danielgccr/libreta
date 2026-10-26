@@ -120,13 +120,23 @@ def test_matplotlib_figures_in_order(tmp_path):
 def test_inline_values(worker):
     run(worker, "z = 2.5\nclass Bad:\n    def __str__(self):\n        raise ValueError('no')")
     values = worker.inline(["z * 2", "'texto'", "print('x') or 1", "nada", "Bad()", "1 +"], "")
-    assert values["z * 2"] == {"text": "5.0"}
+    assert values["z * 2"] == {"text": "5"}
     assert values["'texto'"] == {"text": "texto"}  # str(), not repr()
     assert values["print('x') or 1"] == {"text": "1"}  # what it prints is dropped
     assert values["nada"] == {"error": "NameError: name 'nada' is not defined"}
     assert values["Bad()"] == {"error": "ValueError: no"}
     assert values["1 +"]["error"].startswith("SyntaxError")
     assert run(worker, "z") == [("text/plain", "2.5")]
+    floats = ["57 / 94", "12345.678", "1.5e-7", "2e20", "-3.14159", "float('nan')", "7"]
+    assert [v["text"] for v in worker.inline(floats, "").values()] == [
+        "0.6064",
+        "12346",
+        "1.5e-07",
+        "2e+20",
+        "-3.142",
+        "nan",
+        "7",
+    ]
 
 
 def test_assist(worker):

@@ -228,7 +228,9 @@ Así no hace falta sincronizar ids de bloque entre cliente y servidor.
 - Se evalúa con `eval` (solo expresiones, no sentencias) sobre el estado del namespace en
   ese punto del documento: después de los bloques anteriores y antes de los siguientes.
 - No hay sintaxis de formato propia: `py round(x, 1)` o `` `py f"{x:.1f}"` `` ya son Python.
-  El valor se muestra con `str()`, no con `repr()`: es prosa.
+  El valor se muestra con `str()`, no con `repr()`: es prosa. Un `float`, con 4 cifras
+  significativas (`0.6064`, `5` en vez de `5.0`), entero de 10.000 en adelante (`12346`):
+  quien quiere otro formato escribe el suyo, `` `py f"{x:.2f}"` ``.
 - Se evalúan al ejecutar el bloque que las precede (las anteriores al primer bloque, cuando
   el worker arranca) y con Ctrl+Enter en el Markdown: si el worker está justo en ese punto
   del documento solo se evalúan; si no, se aplica §4.5 hasta el bloque anterior.

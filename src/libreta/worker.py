@@ -497,13 +497,20 @@ def _run_code(source, filename: str, mode: str, namespace: dict):
         _task = None
 
 
+def _prose(value) -> str:
+    """str(), not repr(); a float to 4 significant digits (0.6064), whole from 10,000 up."""
+    if isinstance(value, float) and 1e4 <= abs(value) < 1e15:
+        return f"{value:.0f}"
+    return f"{value:.4g}" if isinstance(value, float) else str(value)
+
+
 def _evaluate(namespace: dict, expression: str, filename: str) -> dict:
-    """An inline `py` value as prose shows it: str(), not repr()."""
+    """An inline `py` value as prose shows it: str(), not repr(), with floats rounded."""
     global _running, _pending
     _pending = False
     _running = True
     try:
-        result = {"text": str(_run_code(expression, filename, "eval", namespace))}
+        result = {"text": _prose(_run_code(expression, filename, "eval", namespace))}
     except BaseException as e:
         result = {"error": traceback.format_exception_only(e)[-1].strip()}
     _running = False
