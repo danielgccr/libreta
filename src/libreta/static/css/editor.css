@@ -331,7 +331,9 @@ body {
   position: absolute;
   inset-block-start: 0;
   inset-inline-start: calc(100% + 1.5rem);
-  width: 24ch;
+  /* What is left of the window right of the column, so the ellipsis shows before its edge
+     does (1rem more for the scrollbar, which 100vw includes). */
+  width: min(24ch, (100vw - var(--measure)) / 2 - 2.5rem);
 }
 .note {
   position: absolute;
