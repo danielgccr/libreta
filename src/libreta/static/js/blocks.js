@@ -178,6 +178,32 @@ export function insertFootnote(main, textarea) {
   document.execCommand("insertText", false, `${label}${value.slice(pos, end)}\n\n${label}: `);
 }
 
+// Ctrl+B and Ctrl+I in Markdown: wrap the selection in ** or _, hugging the text (a
+// double-click can take a trailing space), or unwrap it if it already is; with no selection,
+// the markers go around the caret. One insertText: one undo step.
+export function toggleEmphasis(textarea, marker) {
+  const { value } = textarea;
+  let { selectionStart: start, selectionEnd: end } = textarea;
+  while (start < end && /\s/.test(value[start])) start++;
+  while (end > start && /\s/.test(value[end - 1])) end--;
+  const n = marker.length;
+  const text = value.slice(start, end);
+  const wrapped =
+    value.slice(start - n, start) === marker &&
+    value.slice(end, end + n) === marker &&
+    value[start - n - 1] !== marker[0] && // not the inner half of a longer run: _ in __x__
+    value[end + n] !== marker[0];
+  if (wrapped) {
+    textarea.setSelectionRange(start - n, end + n);
+    document.execCommand("insertText", false, text);
+    textarea.setSelectionRange(start - n, end - n);
+  } else {
+    textarea.setSelectionRange(start, end);
+    document.execCommand("insertText", false, marker + text + marker);
+    textarea.setSelectionRange(start + n, end + n);
+  }
+}
+
 // Backspace or Delete on an empty Python block: remove it and join the Markdown around it.
 export function removePython(block) {
   const prev = block.previousElementSibling;

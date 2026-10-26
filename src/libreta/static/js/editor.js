@@ -20,6 +20,7 @@ import {
   revealCaret,
   serialize,
   textareaOf,
+  toggleEmphasis,
 } from "./blocks.js";
 import { closeAssist, handleAssistInput, handleAssistKey } from "./complete.js";
 import { lang, tr } from "./i18n.js";
@@ -306,6 +307,11 @@ document.addEventListener("keydown", (event) => {
   if (mod && event.altKey && event.code === "KeyF" && !isPython(block)) {
     event.preventDefault();
     insertFootnote(main, textarea);
+    return;
+  }
+  if (mod && !event.altKey && !event.shiftKey && (key === "b" || key === "i") && !isPython(block)) {
+    event.preventDefault();
+    toggleEmphasis(textarea, key === "b" ? "**" : "_");
     return;
   }
   if (mod && event.key === "Enter") {
